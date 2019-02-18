@@ -1198,7 +1198,8 @@ namespace bgfx { namespace gl
 	{
 		GLint result = 0;
 		glGetIntegerv(_pname, &result);
-		GLenum err = getGlError();
+		GLenum err = glGetError();
+		flushGlError();
 		BX_WARN(0 == err, "glGetIntegerv(0x%04x, ...) failed with GL error: 0x%04x.", _pname, err);
 		return 0 == err ? result : 0;
 	}
@@ -2590,6 +2591,7 @@ namespace bgfx { namespace gl
 						}
 					}
 				}
+
 
 				for (uint32_t ii = BX_ENABLED(BX_PLATFORM_IOS) ? TextureFormat::Unknown : 0 // skip test on iOS!
 					; ii < TextureFormat::Count
@@ -7172,7 +7174,6 @@ namespace bgfx { namespace gl
 
 		ProgramHandle currentProgram = BGFX_INVALID_HANDLE;
 		ProgramHandle boundProgram   = BGFX_INVALID_HANDLE;
-		bool usedProgram[BGFX_CONFIG_MAX_PROGRAMS] = {};
 		SortKey key;
 		uint16_t view = UINT16_MAX;
 		FrameBufferHandle fbh = { BGFX_CONFIG_MAX_FRAME_BUFFERS };
@@ -7288,7 +7289,7 @@ namespace bgfx { namespace gl
 					setViewType(view, "  ");
 					BGFX_GL_PROFILER_BEGIN(view, kColorView);
 
-					profiler.begin(view);
+					//profiler.begin(view);
 
 					viewState.m_rect = _render->m_view[view].m_rect;
 
@@ -7407,7 +7408,7 @@ namespace bgfx { namespace gl
 								commit(*program.m_constantBuffer[UniformFreq::Submit]);
 							}
 
-							viewState.setPredefined<1>(this, view, program, _render, compute);
+							viewState.setPredefined<1>(this, view, program, _render, compute, viewChanged);
 
 							if (isValid(compute.m_indirectBuffer) )
 							{
@@ -7666,6 +7667,7 @@ namespace bgfx { namespace gl
 						{
 							float pointSize = (float)(bx::uint32_max(1, (newFlags&BGFX_STATE_POINT_SIZE_MASK)>>BGFX_STATE_POINT_SIZE_SHIFT) );
 							GL_CHECK(glPointSize(pointSize) );
+							//GL_CHECK(glEnable(GL_VERTEX_PROGRAM_POINT_SIZE) );
 						}
 
 						if (BGFX_STATE_MSAA & changedFlags)
@@ -7862,17 +7864,14 @@ namespace bgfx { namespace gl
 						}
 					};
 
-					if (!usedProgram[currentProgram.idx])
+					if (programChanged)
 					{
-						bx::memSet(program.m_viewUniformsWasSet, 0, sizeof(bool) * BGFX_CONFIG_MAX_VIEWS);
 						commitConstants(UniformFreq::Frame);
-						usedProgram[currentProgram.idx] = true;
 					}
 
-					if (!program.m_viewUniformsWasSet[view])
+					if (programChanged)
 					{
 						commitConstants(UniformFreq::View);
-						program.m_viewUniformsWasSet[view] = true;
 					}
 
 					if (constantsChanged)
@@ -7880,7 +7879,7 @@ namespace bgfx { namespace gl
 						commitConstants(UniformFreq::Submit);
 					}
 
-					viewState.setPredefined<1>(this, view, program, _render, draw);
+					viewState.setPredefined<1>(this, view, program, _render, draw, programChanged || viewChanged);
 
 					{
 						GLbitfield barrier = 0;
@@ -8232,7 +8231,7 @@ namespace bgfx { namespace gl
 				capture();
 				captureElapsed += bx::getHPCounter();
 
-				profiler.end();
+				//profiler.end();
 			}
 		}
 

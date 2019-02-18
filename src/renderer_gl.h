@@ -1522,8 +1522,6 @@ namespace bgfx { namespace gl
 		UniformBuffer* m_constantBuffer[UniformFreq::Count];
 		PredefinedUniform m_predefined[PredefinedUniform::Count];
 		uint8_t m_numPredefined;
-
-		bool m_viewUniformsWasSet[BGFX_CONFIG_MAX_VIEWS];
 	};
 
 	struct TimerQueryGL

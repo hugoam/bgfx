@@ -4214,7 +4214,7 @@ namespace bgfx { namespace d3d9
 						commitConstants(UniformFreq::Submit);
 					}
 
-					viewState.setPredefined<1>(this, view, program, _render, draw);
+					viewState.setPredefined<1>(this, view, program, _render, draw, programChanged || viewChanged);
 				}
 
 				{

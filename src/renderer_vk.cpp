@@ -7810,7 +7810,9 @@ VK_DESTROY
 					if (constantsChanged
 					||  hasPredefined)
 					{
-						viewState.setPredefined<4>(this, view, program, _render, compute);
+						viewState.setPredefined<4>(this, view, program, _render, compute, viewChanged);
+//						commitShaderConstants(key.m_program, gpuAddress);
+//						m_commandList->SetComputeRootConstantBufferView(Rdt::CBV, gpuAddress);
 					}
 
 					if (program.m_descriptorSetLayoutHash != 0)
@@ -7951,6 +7953,7 @@ VK_DESTROY
 					primIndex = uint8_t(pt>>BGFX_STATE_PT_SHIFT);
 				}
 
+				const bool submitConstants = draw.m_uniformBegin < draw.m_uniformEnd;
 				rendererUpdateUniforms(this, _render->m_submitUniforms[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
 
 				if (0 != draw.m_streamMask)
@@ -8085,9 +8088,10 @@ VK_DESTROY
 						vkCmdBindPipeline(m_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 					}
 
+					bool programChanged = currentProgram.idx != key.m_program.idx;
 					bool constantsChanged = false;
-					if (draw.m_uniformBegin < draw.m_uniformEnd
-					||  currentProgram.idx != key.m_program.idx
+					if (submitConstants
+					||  programChanged
 					||  BGFX_STATE_ALPHA_REF_MASK & changedFlags)
 					{
 						currentProgram = key.m_program;
@@ -8118,7 +8122,8 @@ VK_DESTROY
 					{
 						uint32_t ref = (newFlags & BGFX_STATE_ALPHA_REF_MASK) >> BGFX_STATE_ALPHA_REF_SHIFT;
 						viewState.m_alphaRef = ref / 255.0f;
-						viewState.setPredefined<4>(this, view, program, _render, draw);
+						viewState.setPredefined<4>(this, view, program, _render, draw, programChanged || viewChanged);
+						//commitShaderUniforms(m_commandBuffer, key.m_program); //, gpuAddress);
 					}
 
 					if (program.m_descriptorSetLayoutHash != 0)
