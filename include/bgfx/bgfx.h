@@ -1432,6 +1432,25 @@ namespace bgfx
 			, uint32_t _flags = UINT32_MAX
 			);
 
+		/// Set texture stage for draw primitive.
+		///
+		/// @param[in] _stage Texture unit.
+		/// @param[in] _handle Texture handle.
+		/// @param[in] _flags Texture sampling mode. Default value UINT32_MAX uses
+		///   texture sampling settings from the texture.
+		///   - `BGFX_SAMPLER_[U/V/W]_[MIRROR/CLAMP]` - Mirror or clamp to edge wrap
+		///     mode.
+		///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
+		///     sampling.
+		///
+		/// @attention C99 equivalent is `bgfx_encoder_set_texture`.
+		///
+		void setTexture(
+			uint8_t _stage
+			, TextureHandle _handle
+			, uint32_t _flags = UINT32_MAX
+		);
+
 		/// Submit an empty primitive for rendering. Uniforms and draw state
 		/// will be applied but no geometry will be submitted. Useful in cases
 		/// when no other draw/compute primitive is submitted to view, but it's

@@ -2626,6 +2626,17 @@ namespace bgfx
 			}
 		}
 
+		void setTexture(uint8_t _stage, TextureHandle _handle, uint32_t _flags)
+		{
+			Binding& bind = m_bind.m_bind[_stage];
+			bind.m_idx = _handle.idx;
+			bind.m_type = uint8_t(Binding::Texture);
+			bind.m_samplerFlags = (_flags&BGFX_SAMPLER_INTERNAL_DEFAULT)
+				? BGFX_SAMPLER_INTERNAL_DEFAULT
+				: _flags
+				;
+		}
+
 		void setBuffer(uint8_t _stage, IndexBufferHandle _handle, Access::Enum _access)
 		{
 			Binding& bind = m_bind.m_bind[_stage];

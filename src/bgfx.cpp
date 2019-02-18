@@ -3793,6 +3793,13 @@ namespace bgfx
 		BGFX_ENCODER(setTexture(_stage, _sampler, _handle, _flags) );
 	}
 
+	void Encoder::setTexture(uint8_t _stage, TextureHandle _handle, uint32_t _flags)
+	{
+		BGFX_CHECK_HANDLE_INVALID_OK("setTexture/TextureHandle", s_ctx->m_textureHandle, _handle);
+		BX_ASSERT(_stage < g_caps.limits.maxTextureSamplers, "Invalid stage %d (max %d).", _stage, g_caps.limits.maxTextureSamplers);
+		BGFX_ENCODER(setTexture(_stage, _handle, _flags));
+	}
+
 	void Encoder::touch(ViewId _id)
 	{
 		ProgramHandle handle = BGFX_INVALID_HANDLE;
