@@ -144,7 +144,7 @@ typedef uint64_t GLuint64;
 
 #	if BGFX_USE_HTML5
 #		include "glcontext_html5.h"
-#	endif // BGFX_USE_EGL
+#	endif // BGFX_USE_HTML5
 
 #endif // BGFX_CONFIG_RENDERER_OPENGL
 
