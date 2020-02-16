@@ -26,6 +26,10 @@ BX_PRAGMA_DIAGNOSTIC_POP()
 
 namespace bgfx
 {
+#ifndef SHADERC_STATIC
+namespace spirv
+{
+#endif
 	static bx::DefaultAllocator s_allocator;
 	bx::AllocatorI* g_allocator = &s_allocator;
 
@@ -47,9 +51,16 @@ namespace bgfx
 			BX_FREE(g_allocator, _ptr);
 		}
 	}
+#ifndef SHADERC_STATIC
+} // namespace spirv
+#endif
 } // namespace bgfx
 
+#ifdef SHADERC_STATIC
 #define TINYSTL_ALLOCATOR bgfx::TinyStlAllocator
+#else
+#define TINYSTL_ALLOCATOR bgfx::spirv::TinyStlAllocator
+#endif
 #include <tinystl/allocator.h>
 #include <tinystl/string.h>
 #include <tinystl/unordered_map.h>

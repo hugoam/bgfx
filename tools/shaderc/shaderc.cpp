@@ -254,6 +254,7 @@ namespace bgfx
 		NULL
 	};
 
+#ifdef SHADERC_STATIC
 	const char* s_uniformTypeName[] =
 	{
 		"int",  "int",
@@ -263,6 +264,7 @@ namespace bgfx
 		"mat4", "float4x4",
 	};
 	BX_STATIC_ASSERT(BX_COUNTOF(s_uniformTypeName) == UniformType::Count*2);
+#endif
 
 	static const char* s_allowedVertexShaderInputs[] =
 	{
@@ -385,6 +387,7 @@ namespace bgfx
 		return _glsl; // centroid, noperspective
 	}
 
+#ifdef SHADERC_STATIC
 	const char* getUniformTypeName(UniformType::Enum _enum)
 	{
 		uint32_t idx = _enum & ~(kUniformFragmentBit|kUniformSamplerBit);
@@ -409,6 +412,7 @@ namespace bgfx
 
 		return UniformType::Count;
 	}
+#endif
 
 	int32_t writef(bx::WriterI* _writer, const char* _format, ...)
 	{
@@ -2520,6 +2524,23 @@ namespace bgfx
 		return compiled;
 	}
 
+	char     _shaderErrorBuffer[UINT16_MAX];
+	uint16_t _shaderErrorBufferPos = 0;
+
+	void compilerError(const char *_format, ...)
+	{
+		va_list args;
+		va_start(args, _format);
+		_shaderErrorBufferPos += vsprintf(&_shaderErrorBuffer[_shaderErrorBufferPos], _format, args);
+		va_end(args);
+	}
+
+	void getShaderError(char* _outputText, uint16_t& _outputSize)
+	{
+		strcpy(_outputText, _shaderErrorBuffer);
+		_outputSize = _shaderErrorBufferPos;
+	}
+
 	int compileShader(int _argc, const char* _argv[])
 	{
 		bx::CommandLine cmdLine(_argc, _argv);
@@ -2766,7 +2787,9 @@ namespace bgfx
 
 } // namespace bgfx
 
+#ifdef SHADERC_STATIC
 int main(int _argc, const char* _argv[])
 {
 	return bgfx::compileShader(_argc, _argv);
 }
+#endif
