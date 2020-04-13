@@ -69,6 +69,8 @@ project ("example-common")
 		defines {
 			"ENTRY_CONFIG_USE_GLFW=1",
 		}
+		
+		includedirs { path.join(GLFW_DIR, "include") }
 	end
 
 	if _OPTIONS["with-wayland"] then
