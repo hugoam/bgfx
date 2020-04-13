@@ -4753,12 +4753,13 @@ namespace bgfx { namespace gl
 
 				if (0 == linked)
 				{
-					char log[1024];
+					char log[1024 * 64];
 					GL_CHECK(glGetProgramInfoLog(m_id, sizeof(log), NULL, log) );
 					BX_TRACE("%d: %s", linked, log);
 				}
 			}
 
+			BX_ASSERT(0 != linked, "Invalid vertex/compute shader.");
 			if (0 == linked)
 			{
 				BX_WARN(0 != _vsh.m_id, "Invalid vertex/compute shader.");
