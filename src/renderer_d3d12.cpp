@@ -1797,7 +1797,7 @@ namespace bgfx { namespace d3d12
 			}
 		}
 
-		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) override
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformSet::Enum _freq) override
 		{
 			if (NULL != m_uniforms[_handle.idx])
 			{
@@ -4575,11 +4575,11 @@ namespace bgfx { namespace d3d12
 				else if (0 == (kUniformSamplerBit & type) )
 				{
 					const UniformRegInfo* info = s_renderD3D12->m_uniformReg.find(name);
-					const UniformFreq::Enum freq = info->m_freq;
 					BX_WARN(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
 
 					if (NULL != info)
 					{
+						const UniformSet::Enum freq = info->m_freq;
 						if (NULL == m_constantBuffer[freq])
 						{
 							m_constantBuffer[freq] = UniformBuffer::create(1024);
@@ -4605,7 +4605,7 @@ namespace bgfx { namespace d3d12
 				BX_UNUSED(kind);
 			}
 
-			for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+			for (uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 			{
 				if (NULL != m_constantBuffer[ii])
 				{
@@ -5969,10 +5969,9 @@ namespace bgfx { namespace d3d12
 // 		bool wireframe = !!(_render->m_debug&BGFX_DEBUG_WIREFRAME);
 // 		setDebugWireframe(wireframe);
 
-		bool usedProgram[BGFX_CONFIG_MAX_PROGRAMS] = {};
-
 		uint16_t currentSamplerStateIdx = kInvalidHandle;
 		ProgramHandle currentProgram    = BGFX_INVALID_HANDLE;
+		uint16_t currentGroup           = UINT16_MAX;
 		uint32_t currentBindHash        = 0;
 		bool     hasPredefined          = false;
 		bool     commandListChanged     = false;
@@ -6311,7 +6310,7 @@ namespace bgfx { namespace d3d12
 						currentProgram = key.m_program;
 						ProgramD3D12& program = m_program[currentProgram.idx];
 
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformSet::Submit];
 						if (NULL != vcb)
 						{
 							commit(*vcb);
@@ -6448,7 +6447,10 @@ namespace bgfx { namespace d3d12
 
 				bool constantsChanged = false;
 				bool submitConstants = draw.m_uniformBegin < draw.m_uniformEnd;
+				bool groupChanged = draw.m_uniformGroup[UniformSet::Group] != currentGroup;
 				rendererUpdateUniforms(this, _render->m_submitUniforms[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
+
+				currentGroup = draw.m_uniformGroup[UniformSet::Group];
 
 				if (0 != draw.m_streamMask)
 				{
@@ -6707,7 +6709,7 @@ namespace bgfx { namespace d3d12
 						currentProgram = key.m_program;
 						ProgramD3D12& program = m_program[currentProgram.idx];
 
-						auto commitConstants = [&](bgfx::UniformFreq::Enum freq)
+						auto commitConstants = [&](bgfx::UniformSet::Enum freq)
 						{
 							UniformBuffer* vcb = program.m_vsh->m_constantBuffer[freq];
 							if (NULL != vcb)
@@ -6725,24 +6727,28 @@ namespace bgfx { namespace d3d12
 							}
 						};
 
-						if (!usedProgram[currentProgram.idx])
+						// data is stored globally in xxScratch, so we must update that each type the program changes
+						if (programChanged)
 						{
-							bx::memSet(program.m_viewUniformsWasSet, 0, sizeof(bool) * BGFX_CONFIG_MAX_VIEWS);
-							commitConstants(UniformFreq::Frame);
-							usedProgram[currentProgram.idx] = true;
+							commitConstants(UniformSet::Frame);
 							constantsChanged = true;
 						}
 
-						if (!program.m_viewUniformsWasSet[view])
+						if (programChanged)
 						{
-							commitConstants(UniformFreq::View);
-							program.m_viewUniformsWasSet[view] = true;
+							commitConstants(UniformSet::View);
+							constantsChanged = true;
+						}
+						
+						if (groupChanged)
+						{
+							commitConstants(UniformSet::Group);
 							constantsChanged = true;
 						}
 
 						if (submitConstants)
 						{
-							commitConstants(UniformFreq::Submit);
+							commitConstants(UniformSet::Submit);
 							constantsChanged = true;
 						}
 

@@ -475,7 +475,7 @@ VK_DESTROY_FUNC(SurfaceKHR);
 
 		const Memory* m_code;
 		VkShaderModule m_module;
-		UniformBuffer* m_constantBuffer[UniformFreq::Count];
+		UniformBuffer* m_constantBuffer[UniformSet::Count];
 
 		PredefinedUniform m_predefined[PredefinedUniform::Count];
 		uint16_t m_attrMask[Attrib::Count];

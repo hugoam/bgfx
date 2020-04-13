@@ -1006,7 +1006,7 @@ namespace bgfx { namespace webgpu
 			}
 		}
 
-		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) override
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformSet::Enum _freq) override
 		{
 			if (NULL != m_uniforms[_handle.idx])
 			{
@@ -2659,7 +2659,7 @@ namespace bgfx { namespace webgpu
 					const UniformRegInfo* info = s_renderWgpu->m_uniformReg.find(name);
 					BX_ASSERT(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
 
-					const UniformFreq::Enum freq = info->m_freq;
+					const UniformSet::Enum freq = info->m_freq;
 					if(NULL == m_constantBuffer[freq])
 					{
 						m_constantBuffer[freq] = UniformBuffer::create(1024);
@@ -2681,7 +2681,7 @@ namespace bgfx { namespace webgpu
 				BX_UNUSED(kind);
 			}
 
-			for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+			for (uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 			{
 				if (NULL != m_constantBuffer[ii])
 				{
@@ -4142,6 +4142,7 @@ namespace bgfx { namespace webgpu
 		//bool wireframe = !!(_render->m_debug&BGFX_DEBUG_WIREFRAME);
 
 		ProgramHandle currentProgram = BGFX_INVALID_HANDLE;
+		uint16_t currentGroup = UINT16_MAX;
 		uint32_t currentBindHash = 0;
 		uint32_t currentBindLayoutHash = 0;
 		BindStateWgpu* previousBindState = NULL;
@@ -4362,10 +4363,10 @@ namespace bgfx { namespace webgpu
 
 					if (constantsChanged)
 					{
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformSet::Submit];
 						if (NULL != vcb)
 						{
-							commit(*vcb);
+							commit(*program.m_vsh, *vcb);
 						}
 					}
 
@@ -4522,8 +4523,12 @@ namespace bgfx { namespace webgpu
 				}
 
 				bool programChanged = false;
-				bool constantsChanged = draw.m_uniformBegin < draw.m_uniformEnd;
+				bool constantsChanged = false;
+				bool submitConstants = draw.m_uniformBegin < draw.m_uniformEnd;
+				bool groupChanged = draw.m_uniformGroup[UniformSet::Group] != currentGroup;
 				rendererUpdateUniforms(this, _render->m_submitUniforms[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
+
+				currentGroup = draw.m_uniformGroup[UniformSet::Group];
 
 				bool vertexStreamChanged = hasVertexStreamChanged(currentState, draw);
 
@@ -4630,22 +4635,47 @@ namespace bgfx { namespace webgpu
 				{
 					const ProgramWgpu& program = m_program[currentProgram.idx];
 
-					if (constantsChanged)
+					auto commitConstants = [&](bgfx::UniformSet::Enum freq)
 					{
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[freq];
 						if (NULL != vcb)
 						{
-							commit(*vcb);
+							commit(*program.m_vsh, *vcb);
 						}
+
+						if (NULL != program.m_fsh)
+						{
+							UniformBuffer* fcb = program.m_fsh->m_constantBuffer[freq];
+							if (NULL != fcb)
+							{
+								commit(*program.m_fsh, *fcb);
+							}
+						}
+					};
+
+					// data is stored globally in xxScratch, so we must update that each type the program changes
+					if (programChanged)
+					{
+						commitConstants(UniformSet::Frame);
+						constantsChanged = true;
 					}
 
-					if (constantsChanged)
+					if (programChanged)
 					{
-						UniformBuffer* fcb = program.m_fsh->m_constantBuffer[UniformFreq::Submit];
-						if (NULL != fcb)
-						{
-							commit(*fcb);
-						}
+						commitConstants(UniformSet::View);
+						constantsChanged = true;
+					}
+
+					if (groupChanged)
+					{
+						commitConstants(UniformSet::Group);
+						constantsChanged = true;
+					}
+
+					if (submitConstants)
+					{
+						commitConstants(UniformSet::Submit);
+						constantsChanged = true;
 					}
 
 					viewState.setPredefined<4>(this, view, program, _render, draw, true); // programChanged || viewChanged);

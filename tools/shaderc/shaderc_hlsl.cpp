@@ -609,6 +609,7 @@ namespace bgfx { namespace hlsl
 			writeFile(hlslfp.c_str(), _code.c_str(), (int32_t)_code.size() );
 		}
 
+		//printf("%s", _code.c_str());
 		HRESULT hr = D3DCompile(_code.c_str()
 			, _code.size()
 			, hlslfp.c_str()

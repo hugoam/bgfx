@@ -19,6 +19,8 @@
 #include "bgfx_utils.h"
 #include "imgui/imgui.h"
 
+#define USE_PER_FRAME_UNIFORMS 0
+
 namespace bgfx
 {
 	int32_t read(bx::ReaderI* _reader, bgfx::VertexLayout& _layout, bx::Error* _err = NULL);
@@ -407,34 +409,40 @@ struct Uniforms
 		m_XOffset = 10.0f/512.0f;
 		m_YOffset = 10.0f/512.0f;
 
+#if USE_PER_FRAME_UNIFORMS
+		bgfx::UniformSet::Enum uniformSet = bgfx::UniformSet::Frame;
+#else
+		bgfx::UniformSet::Enum uniformSet = bgfx::UniformSet::Submit;
+#endif
+
 		u_params0          = bgfx::createUniform("u_params0",          bgfx::UniformType::Vec4);
-		u_params1          = bgfx::createUniform("u_params1",          bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_params2          = bgfx::createUniform("u_params2",          bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
+		u_params1          = bgfx::createUniform("u_params1",          bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_params2          = bgfx::createUniform("u_params2",          bgfx::UniformType::Vec4, 1U, uniformSet);
 		u_color            = bgfx::createUniform("u_color",            bgfx::UniformType::Vec4);
-		u_smSamplingParams = bgfx::createUniform("u_smSamplingParams", bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_csmFarDistances  = bgfx::createUniform("u_csmFarDistances",  bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
+		u_smSamplingParams = bgfx::createUniform("u_smSamplingParams", bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_csmFarDistances  = bgfx::createUniform("u_csmFarDistances",  bgfx::UniformType::Vec4, 1U, uniformSet);
 		u_lightMtx         = bgfx::createUniform("u_lightMtx",         bgfx::UniformType::Mat4);
 
-		u_tetraNormalGreen  = bgfx::createUniform("u_tetraNormalGreen",  bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_tetraNormalYellow = bgfx::createUniform("u_tetraNormalYellow", bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_tetraNormalBlue   = bgfx::createUniform("u_tetraNormalBlue",   bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_tetraNormalRed    = bgfx::createUniform("u_tetraNormalRed",    bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
+		u_tetraNormalGreen  = bgfx::createUniform("u_tetraNormalGreen",  bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_tetraNormalYellow = bgfx::createUniform("u_tetraNormalYellow", bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_tetraNormalBlue   = bgfx::createUniform("u_tetraNormalBlue",   bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_tetraNormalRed    = bgfx::createUniform("u_tetraNormalRed",    bgfx::UniformType::Vec4, 1U, uniformSet);
 
 		u_shadowMapMtx0 = bgfx::createUniform("u_shadowMapMtx0", bgfx::UniformType::Mat4);
 		u_shadowMapMtx1 = bgfx::createUniform("u_shadowMapMtx1", bgfx::UniformType::Mat4);
 		u_shadowMapMtx2 = bgfx::createUniform("u_shadowMapMtx2", bgfx::UniformType::Mat4);
 		u_shadowMapMtx3 = bgfx::createUniform("u_shadowMapMtx3", bgfx::UniformType::Mat4);
 
-		u_lightPosition             = bgfx::createUniform("u_lightPosition",              bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_lightAmbientPower         = bgfx::createUniform("u_lightAmbientPower",          bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_lightDiffusePower         = bgfx::createUniform("u_lightDiffusePower",          bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_lightSpecularPower        = bgfx::createUniform("u_lightSpecularPower",         bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_lightSpotDirectionInner   = bgfx::createUniform("u_lightSpotDirectionInner",    bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_lightAttenuationSpotOuter = bgfx::createUniform("u_lightAttenuationSpotOuter",  bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
+		u_lightPosition             = bgfx::createUniform("u_lightPosition",              bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_lightAmbientPower         = bgfx::createUniform("u_lightAmbientPower",          bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_lightDiffusePower         = bgfx::createUniform("u_lightDiffusePower",          bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_lightSpecularPower        = bgfx::createUniform("u_lightSpecularPower",         bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_lightSpotDirectionInner   = bgfx::createUniform("u_lightSpotDirectionInner",    bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_lightAttenuationSpotOuter = bgfx::createUniform("u_lightAttenuationSpotOuter",  bgfx::UniformType::Vec4, 1U, uniformSet);
 
-		u_materialKa = bgfx::createUniform("u_materialKa", bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_materialKd = bgfx::createUniform("u_materialKd", bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
-		u_materialKs = bgfx::createUniform("u_materialKs", bgfx::UniformType::Vec4, 1U, bgfx::UniformFreq::Frame);
+		u_materialKa = bgfx::createUniform("u_materialKa", bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_materialKd = bgfx::createUniform("u_materialKd", bgfx::UniformType::Vec4, 1U, uniformSet);
+		u_materialKs = bgfx::createUniform("u_materialKs", bgfx::UniformType::Vec4, 1U, uniformSet);
 
 	}
 
@@ -454,30 +462,42 @@ struct Uniforms
 	// Call this once at initialization.
 	void submitConstUniforms()
 	{
-		bgfx::setFrameUniform(u_tetraNormalGreen,  m_tetraNormalGreen);
-		bgfx::setFrameUniform(u_tetraNormalYellow, m_tetraNormalYellow);
-		bgfx::setFrameUniform(u_tetraNormalBlue,   m_tetraNormalBlue);
-		bgfx::setFrameUniform(u_tetraNormalRed,    m_tetraNormalRed);
+#if USE_PER_FRAME_UNIFORMS
+		auto setUniform = [](auto _handle, auto _value) { bgfx::setFrameUniform(_handle, _value); };
+#else
+		auto setUniform = [](auto _handle, auto _value) { bgfx::setUniform(_handle, _value); };
+#endif
+
+		setUniform(u_tetraNormalGreen,  m_tetraNormalGreen);
+		setUniform(u_tetraNormalYellow, m_tetraNormalYellow);
+		setUniform(u_tetraNormalBlue,   m_tetraNormalBlue);
+		setUniform(u_tetraNormalRed,    m_tetraNormalRed);
 	}
 
 	// Call this once per frame.
 	void submitPerFrameUniforms()
 	{
-		bgfx::setFrameUniform(u_params1, m_params1);
-		bgfx::setFrameUniform(u_params2, m_params2);
-		bgfx::setFrameUniform(u_smSamplingParams, m_paramsBlur);
-		bgfx::setFrameUniform(u_csmFarDistances, m_csmFarDistances);
+#if USE_PER_FRAME_UNIFORMS
+		auto setUniform = [](auto _handle, auto _value) { bgfx::setFrameUniform(_handle, _value); };
+#else
+		auto setUniform = [](auto _handle, auto _value) { bgfx::setUniform(_handle, _value); };
+#endif
 
-		bgfx::setFrameUniform(u_materialKa, &m_materialPtr->m_ka);
-		bgfx::setFrameUniform(u_materialKd, &m_materialPtr->m_kd);
-		bgfx::setFrameUniform(u_materialKs, &m_materialPtr->m_ks);
+		setUniform(u_params1, m_params1);
+		setUniform(u_params2, m_params2);
+		setUniform(u_smSamplingParams, m_paramsBlur);
+		setUniform(u_csmFarDistances, m_csmFarDistances);
 
-		bgfx::setFrameUniform(u_lightPosition,             &m_lightPtr->m_position_viewSpace);
-		bgfx::setFrameUniform(u_lightAmbientPower,         &m_lightPtr->m_ambientPower);
-		bgfx::setFrameUniform(u_lightDiffusePower,         &m_lightPtr->m_diffusePower);
-		bgfx::setFrameUniform(u_lightSpecularPower,        &m_lightPtr->m_specularPower);
-		bgfx::setFrameUniform(u_lightSpotDirectionInner,   &m_lightPtr->m_spotDirectionInner_viewSpace);
-		bgfx::setFrameUniform(u_lightAttenuationSpotOuter, &m_lightPtr->m_attenuationSpotOuter);
+		setUniform(u_materialKa, &m_materialPtr->m_ka);
+		setUniform(u_materialKd, &m_materialPtr->m_kd);
+		setUniform(u_materialKs, &m_materialPtr->m_ks);
+
+		setUniform(u_lightPosition,             &m_lightPtr->m_position_viewSpace);
+		setUniform(u_lightAmbientPower,         &m_lightPtr->m_ambientPower);
+		setUniform(u_lightDiffusePower,         &m_lightPtr->m_diffusePower);
+		setUniform(u_lightSpecularPower,        &m_lightPtr->m_specularPower);
+		setUniform(u_lightSpotDirectionInner,   &m_lightPtr->m_spotDirectionInner_viewSpace);
+		setUniform(u_lightAttenuationSpotOuter, &m_lightPtr->m_attenuationSpotOuter);
 	}
 
 	// Call this before each draw call.

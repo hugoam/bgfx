@@ -640,6 +640,13 @@ namespace bgfx { namespace spirv
 					}
 
 					std::string uniformBlock;
+
+					// TODO
+					// uniformBlock += "cbuffer PerFrame\n";
+					// uniformBlock += "cbuffer PerView\n";
+					// uniformBlock += "cbuffer PerGroup\n";
+					// uniformBlock += "cbuffer PerDraw\n";
+
 					uniformBlock += "cbuffer UniformBlock\n";
 					uniformBlock += "{\n";
 

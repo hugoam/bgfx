@@ -2238,7 +2238,7 @@ VK_IMPORT_DEVICE
 			}
 		}
 
-		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) override
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformSet::Enum _freq) override
 		{
 			if (NULL != m_uniforms[_handle.idx])
 			{
@@ -2429,7 +2429,7 @@ VK_IMPORT_DEVICE
 			uint8_t flags = predefined.m_type;
 			setShaderUniform(flags, predefined.m_loc, proj, 4);
 
-			UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
+			UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformSet::Submit];
 			if (NULL != vcb)
 			{
 				commit(*vcb);
@@ -4726,6 +4726,7 @@ VK_DESTROY
 						const uint16_t stage = regIndex - reverseShift; // regIndex is used for image/sampler binding index
 
 						const UniformRegInfo* info = s_renderVK->m_uniformReg.find(name);
+						const UniformSet::Enum freq = info->m_freq;
 						BX_ASSERT(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
 
 						m_bindInfo[stage].uniformHandle    = info->m_handle;
@@ -4754,7 +4755,8 @@ VK_DESTROY
 
 						if (NULL != info)
 						{
-							if (NULL == m_constantBuffer)
+							const UniformSet::Enum freq = info->m_freq;
+							if (NULL == m_constantBuffer[freq])
 							{
 								m_constantBuffer[freq] = UniformBuffer::create(1024);
 							}
@@ -4777,7 +4779,7 @@ VK_DESTROY
 				BX_UNUSED(kind);
 			}
 
-			for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+			for (uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 			{
 				if (NULL != m_constantBuffer[ii])
 				{
@@ -4907,9 +4909,9 @@ VK_DESTROY
 
 	void ShaderVK::destroy()
 	{
-		for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+		for(uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 		{
-			if (NULL != m_constantBuffer[ii])
+			if(NULL != m_constantBuffer[ii])
 			{
 				UniformBuffer::destroy(m_constantBuffer[ii]);
 				m_constantBuffer[ii] = NULL;
@@ -7795,7 +7797,7 @@ VK_DESTROY
 						currentProgram = key.m_program;
 						ProgramVK& program = m_program[currentProgram.idx];
 
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformSet::Submit];
 						if (NULL != vcb)
 						{
 							commit(*vcb);
@@ -8097,7 +8099,7 @@ VK_DESTROY
 						currentProgram = key.m_program;
 						ProgramVK& program = m_program[currentProgram.idx];
 
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformSet::Submit];
 						if (NULL != vcb)
 						{
 							commit(*vcb);
@@ -8105,7 +8107,7 @@ VK_DESTROY
 
 						if (NULL != program.m_fsh)
 						{
-							UniformBuffer* fcb = program.m_fsh->m_constantBuffer[UniformFreq::Submit];
+							UniformBuffer* fcb = program.m_fsh->m_constantBuffer[UniformSet::Submit];
 							if (NULL != fcb)
 							{
 								commit(*fcb);

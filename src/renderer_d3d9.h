@@ -249,7 +249,7 @@ namespace bgfx { namespace d3d9
 
 		void destroy()
 		{
-			for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+			for (uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 			{
 				if (NULL != m_constantBuffer[ii])
 				{
@@ -272,7 +272,7 @@ namespace bgfx { namespace d3d9
 			IDirect3DVertexShader9* m_vertexShader;
 			IDirect3DPixelShader9*  m_pixelShader;
 		};
-		UniformBuffer* m_constantBuffer[UniformFreq::Count];
+		UniformBuffer* m_constantBuffer[UniformSet::Count];
 		PredefinedUniform m_predefined[PredefinedUniform::Count];
 		uint8_t m_numPredefined;
 		uint8_t m_type;

@@ -140,7 +140,7 @@ namespace bgfx { namespace webgpu
 		{
 			if (NULL != m_constantBuffer)
 			{
-				for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+				for (uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 				{
 					if (NULL != m_constantBuffer)
 					{
@@ -160,15 +160,13 @@ namespace bgfx { namespace webgpu
 		ShaderHandle m_handle;
 		String m_label;
 
-		UniformBuffer* m_constantBuffer[UniformFreq::Count] = {};
-
 		wgpu::ShaderStage m_stage;
 		wgpu::ShaderModule m_module;
 
 		uint32_t* m_code = NULL;
 		size_t m_codeSize = 0;
 
-		UniformBuffer* m_constantBuffer = NULL;
+		UniformBuffer* m_constantBuffer[UniformSet::Count] = {};
 
 		PredefinedUniform m_predefined[PredefinedUniform::Count];
 		uint16_t m_attrMask[Attrib::Count];

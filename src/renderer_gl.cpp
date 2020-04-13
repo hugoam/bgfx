@@ -3410,7 +3410,7 @@ namespace bgfx { namespace gl
 			}
 		}
 
-		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) override
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformSet::Enum _freq) override
 		{
 			if (NULL != m_uniforms[_handle.idx])
 			{
@@ -4353,7 +4353,7 @@ namespace bgfx { namespace gl
 
 				updateUniform(m_clearQuadColor.idx, mrtClearColor[0], numMrt * sizeof(float) * 4);
 
-				commit(*program.m_constantBuffer[UniformFreq::Submit]);
+				commit(*program.m_constantBuffer[UniformSet::Submit]);
 
 				GL_CHECK(glDrawArrays(GL_TRIANGLE_STRIP
 					, 0
@@ -4789,7 +4789,7 @@ namespace bgfx { namespace gl
 
 	void ProgramGL::destroy()
 	{
-		for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+		for (uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 		{
 			if (NULL != m_constantBuffer[ii])
 			{
@@ -5009,11 +5009,11 @@ namespace bgfx { namespace gl
 			else
 			{
 				const UniformRegInfo* info = s_renderGL->m_uniformReg.find(name);
-				const UniformFreq::Enum freq = info->m_freq;
 				BX_WARN(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
 
 				if (NULL != info)
 				{
+					const UniformSet::Enum freq = info->m_freq;
 					if (NULL == m_constantBuffer[freq])
 					{
 						m_constantBuffer[freq] = UniformBuffer::create(1024);
@@ -5037,7 +5037,7 @@ namespace bgfx { namespace gl
 			BX_UNUSED(offset);
 		}
 
-		for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
+		for (uint32_t ii = 0; ii < UniformSet::Count; ++ii)
 		{
 			if (NULL != m_constantBuffer[ii])
 			{
@@ -7172,6 +7172,7 @@ namespace bgfx { namespace gl
 		static ViewState viewState;
 		viewState.reset(_render);
 
+		uint16_t currentGroup        = UINT16_MAX;
 		ProgramHandle currentProgram = BGFX_INVALID_HANDLE;
 		ProgramHandle boundProgram   = BGFX_INVALID_HANDLE;
 		SortKey key;
@@ -7278,11 +7279,11 @@ namespace bgfx { namespace gl
 					{
 						ProgramGL& program = m_program[currentProgram.idx];
 
-						rendererUpdateUniforms(this, _render->m_viewUniforms, 0, 0);
+						rendererUpdateUniforms(this, &_render->m_viewUniforms[view], 0, 0);
 
-						if (NULL != program.m_constantBuffer[UniformFreq::View])
+						if (NULL != program.m_constantBuffer[UniformSet::View])
 						{
-							commit(*program.m_constantBuffer[UniformFreq::View]);
+							commit(*program.m_constantBuffer[UniformSet::View]);
 						}
 					}
 
@@ -7403,9 +7404,9 @@ namespace bgfx { namespace gl
 							rendererUpdateUniforms(this, _render->m_submitUniforms[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
 
 							if (constantsChanged
-							&&  NULL != program.m_constantBuffer[UniformFreq::Submit])
+							&&  NULL != program.m_constantBuffer[UniformSet::Submit])
 							{
-								commit(*program.m_constantBuffer[UniformFreq::Submit]);
+								commit(*program.m_constantBuffer[UniformSet::Submit]);
 							}
 
 							viewState.setPredefined<1>(this, view, program, _render, compute, viewChanged);
@@ -7834,8 +7835,11 @@ namespace bgfx { namespace gl
 
 				bool programChanged = false;
 				bool constantsChanged = draw.m_uniformBegin < draw.m_uniformEnd;
+				bool groupChanged = draw.m_uniformGroup[UniformSet::Group] != currentGroup;
 				bool bindAttribs = false;
 				rendererUpdateUniforms(this, _render->m_submitUniforms[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
+
+				currentGroup = draw.m_uniformGroup[UniformSet::Group];
 
 				if (key.m_program.idx != currentProgram.idx)
 				{
@@ -7855,7 +7859,7 @@ namespace bgfx { namespace gl
 				{
 					ProgramGL& program = m_program[currentProgram.idx];
 
-					auto commitConstants = [&](bgfx::UniformFreq::Enum freq)
+					auto commitConstants = [&](bgfx::UniformSet::Enum freq)
 					{
 						UniformBuffer* cb = program.m_constantBuffer[freq];
 						if (NULL != cb)
@@ -7866,17 +7870,22 @@ namespace bgfx { namespace gl
 
 					if (programChanged)
 					{
-						commitConstants(UniformFreq::Frame);
+						commitConstants(UniformSet::Frame);
 					}
 
 					if (programChanged)
 					{
-						commitConstants(UniformFreq::View);
+						commitConstants(UniformSet::View);
+					}
+					
+					if (groupChanged)
+					{
+						commitConstants(UniformSet::Group);
 					}
 
 					if (constantsChanged)
 					{
-						commitConstants(UniformFreq::Submit);
+						commitConstants(UniformSet::Submit);
 					}
 
 					viewState.setPredefined<1>(this, view, program, _render, draw, programChanged || viewChanged);
