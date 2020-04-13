@@ -745,6 +745,96 @@ namespace bgfx { namespace spirv
 					spirv_cross::CompilerReflection refl(spirv);
 					spirv_cross::ShaderResources resourcesrefl = refl.get_shader_resources();
 
+					bx::debugPrintf("[debug] reflection for shader %s\n", _options.inputFilePath.c_str());
+
+					for(auto &resource : resourcesrefl.stage_inputs)
+					{
+						std::string name = refl.get_name(resource.id);
+						if(refl.has_decoration(resource.id, spv::DecorationLocation))
+						{
+							uint32_t location = refl.get_decoration(resource.id, spv::DecorationLocation);
+							bx::debugPrintf("[debug] stage input - location %s: %u\n", name.c_str(), location);
+						}
+					}
+
+					for(auto &resource : resourcesrefl.storage_buffers)
+					{
+						std::string name = refl.get_name(resource.id);
+						if(refl.has_decoration(resource.id, spv::DecorationBinding))
+						{
+							uint32_t set = refl.get_decoration(resource.id, spv::DecorationDescriptorSet);
+							uint32_t location = refl.get_decoration(resource.id, spv::DecorationBinding);
+							auto flags = refl.get_buffer_block_flags(resource.id);
+							bool readonly = flags.get(spv::DecorationNonWritable);
+							bx::debugPrintf("[debug] storage buffer - %s set = %u binding = %u readonly = %d\n", name.c_str(), set, location, readonly);
+						}
+					}
+
+					for (auto& resource : resourcesrefl.storage_images)
+					{
+						std::string name = refl.get_name(resource.id);
+						if (refl.has_decoration(resource.id, spv::DecorationBinding))
+						{
+							uint32_t set = refl.get_decoration(resource.id, spv::DecorationDescriptorSet);
+							uint32_t location = refl.get_decoration(resource.id, spv::DecorationBinding);
+							auto flags = refl.get_buffer_block_flags(resource.id);
+							bool readonly = flags.get(spv::DecorationNonWritable);
+							bx::debugPrintf("[debug] storage image - %s set = %u binding = %u readonly = %d\n", name.c_str(), set, location, readonly);
+						}
+					}
+
+					for(auto &resource : resourcesrefl.separate_images)
+					{
+						std::string name = refl.get_name(resource.id);
+						if(refl.has_decoration(resource.id, spv::DecorationBinding))
+						{
+							uint32_t set = refl.get_decoration(resource.id, spv::DecorationDescriptorSet);
+							uint32_t location = refl.get_decoration(resource.id, spv::DecorationBinding);
+							bool compare = refl.variable_is_depth_or_compare(resource.id);
+
+							auto type = refl.get_type(resource.base_type_id);
+							auto componentType = refl.get_type(type.image.type).basetype;
+							auto imageType = refl.get_type(resource.base_type_id).image;
+							bool depth = imageType.depth;
+
+							bx::debugPrintf("[debug] texture %s%s- %s set = %u binding = %u component = %u dimension = %u\n",
+								            compare ? "(compare) " : "", depth ? "(depth) " : "", name.c_str(), set, location, componentType, type.image.dim);
+						}
+					}
+
+					for(auto &resource : resourcesrefl.separate_samplers)
+					{
+						std::string name = refl.get_name(resource.id);
+						if(refl.has_decoration(resource.id, spv::DecorationBinding))
+						{
+							uint32_t set = refl.get_decoration(resource.id, spv::DecorationDescriptorSet);
+							uint32_t location = refl.get_decoration(resource.id, spv::DecorationBinding);
+							bool compare = refl.variable_is_depth_or_compare(resource.id) || name.find("Comparison") != std::string::npos;
+							bx::debugPrintf("[debug] sampler %s- %s set = %u binding = %u\n", compare ? "(compare) " : "", name.c_str(), set, location);
+						}
+					}
+
+					for(auto &resource : resourcesrefl.uniform_buffers)
+					{
+						std::string name = refl.get_name(resource.id);
+						if(refl.has_decoration(resource.id, spv::DecorationBinding))
+						{
+							uint32_t set = refl.get_decoration(resource.id, spv::DecorationDescriptorSet);
+							uint32_t location = refl.get_decoration(resource.id, spv::DecorationBinding);
+							bx::debugPrintf("[debug] uniform buffer - %s set = %u binding = %u\n", name.c_str(), set, location);
+						}
+					}
+
+					for(auto &resource : resourcesrefl.stage_outputs)
+					{
+						std::string name = refl.get_name(resource.id);
+						if(refl.has_decoration(resource.id, spv::DecorationLocation))
+						{
+							uint32_t location = refl.get_decoration(resource.id, spv::DecorationLocation);
+							bx::debugPrintf("[debug] stage output - %s location: %u\n", name.c_str(), location);
+						}
+					}
+
 					// Loop through the separate_images, and extract the uniform names:
 					for (auto &resource : resourcesrefl.separate_images)
 					{
