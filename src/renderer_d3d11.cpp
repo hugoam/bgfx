@@ -1785,7 +1785,7 @@ namespace bgfx { namespace d3d11
 
 		void createShader(ShaderHandle _handle, const Memory* _mem) override
 		{
-			m_shaders[_handle.idx].create(_mem);
+			m_shaders[_handle.idx].create(_handle, _mem);
 		}
 
 		void destroyShader(ShaderHandle _handle) override
@@ -3373,7 +3373,7 @@ namespace bgfx { namespace d3d11
 			}
 		}
 
-		void commit(UniformBuffer& _uniformBuffer)
+		void commit(const ShaderD3D11& _shader, UniformBuffer& _uniformBuffer)
 		{
 			_uniformBuffer.reset();
 
@@ -3404,15 +3404,6 @@ namespace bgfx { namespace d3d11
 					data = (const char*)m_uniforms[handle.idx];
 				}
 
-#define CASE_IMPLEMENT_UNIFORM(_uniform, _dxsuffix, _type) \
-		case UniformType::_uniform: \
-		case UniformType::_uniform|kUniformFragmentBit: \
-		case UniformType::_uniform|kUniformGeometryBit: \
-				{ \
-					setShaderUniform(uint8_t(type), loc, data, num); \
-				} \
-				break;
-
 				switch ( (uint32_t)type)
 				{
 				case UniformType::Mat3:
@@ -3440,9 +3431,19 @@ namespace bgfx { namespace d3d11
 					}
 					break;
 
-				CASE_IMPLEMENT_UNIFORM(Sampler, I, int);
-				CASE_IMPLEMENT_UNIFORM(Vec4,    F, float);
-				CASE_IMPLEMENT_UNIFORM(Mat4,    F, float);
+				case UniformType::Sampler:
+				case UniformType::Sampler|kUniformFragmentBit:
+				case UniformType::Sampler|kUniformGeometryBit:
+				case UniformType::Vec4:
+				case UniformType::Vec4|kUniformFragmentBit:
+				case UniformType::Vec4|kUniformGeometryBit:
+				case UniformType::Mat4:
+				case UniformType::Mat4|kUniformFragmentBit:
+				case UniformType::Mat4|kUniformGeometryBit:
+					{
+						setShaderUniform(uint8_t(type), loc, data, num);
+					}
+					break;
 
 				case UniformType::End:
 					break;
@@ -3451,7 +3452,6 @@ namespace bgfx { namespace d3d11
 					BX_TRACE("%4d: INVALID 0x%08x, t %d, l %d, n %d, c %d", _uniformBuffer.getPos(), opcode, type, loc, num, copy);
 					break;
 				}
-#undef CASE_IMPLEMENT_UNIFORM
 			}
 		}
 
@@ -4110,8 +4110,10 @@ namespace bgfx { namespace d3d11
 		}
 	}
 
-	void ShaderD3D11::create(const Memory* _mem)
+	void ShaderD3D11::create(ShaderHandle _handle, const Memory* _mem)
 	{
+		m_handle = _handle;
+
 		bx::MemoryReader reader(_mem->data, _mem->size);
 
 		uint32_t magic;
@@ -5804,7 +5806,7 @@ namespace bgfx { namespace d3d11
 							UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformSet::Submit];
 							if (NULL != vcb)
 							{
-								commit(*vcb);
+								commit(*program.m_vsh, *vcb);
 							}
 						}
 
@@ -6135,7 +6137,7 @@ namespace bgfx { namespace d3d11
 						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[freq];
 						if (NULL != vcb)
 						{
-							commit(*vcb);
+							commit(*program.m_vsh, *vcb);
 						}
 						
 						if (NULL != program.m_gsh)
@@ -6143,7 +6145,7 @@ namespace bgfx { namespace d3d11
 							UniformBuffer* gcb = program.m_gsh->m_constantBuffer[freq];
 							if (NULL != gcb)
 							{
-								commit(*gcb);
+								commit(*program.m_gsh, *gcb);
 							}
 						}
 
@@ -6152,7 +6154,7 @@ namespace bgfx { namespace d3d11
 							UniformBuffer* fcb = program.m_fsh->m_constantBuffer[freq];
 							if (NULL != fcb)
 							{
-								commit(*fcb);
+								commit(*program.m_fsh, *fcb);
 							}
 						}
 					};

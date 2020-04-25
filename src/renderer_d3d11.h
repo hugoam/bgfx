@@ -146,7 +146,7 @@ namespace bgfx { namespace d3d11
 		{
 		}
 
-		void create(const Memory* _mem);
+		void create(ShaderHandle _handle, const Memory* _mem);
 
 		void destroy()
 		{
@@ -175,6 +175,10 @@ namespace bgfx { namespace d3d11
 				m_hash = 0;
 			}
 		}
+
+		String name() const { return getName(m_handle); }
+
+		ShaderHandle m_handle;
 
 		union
 		{
