@@ -50,6 +50,15 @@
 #	define bvec3 bool3
 #	define bvec4 bool4
 
+#	define BIND_SET_TEXTURE 1
+#	define BIND_SET_SAMPLER 2
+#	define BIND_SET_STORAGE 3
+
+#	if BGFX_SHADER_LANGUAGE_SPIRV
+#		define LAYOUT(_set, _binding) layout(set = _set, binding = _binding)
+#	else
+#		define LAYOUT(_set, _binding)
+#	endif // BGFX_SHADER_LANGUAGE_HLSL
 
 #	if BGFX_SHADER_LANGUAGE_HLSL > 4
 #		define REGISTER(_type, _reg) register(_type[_reg])
@@ -346,14 +355,14 @@ vec3 bgfxTextureSize(BgfxSampler3D _sampler, int _lod)
 }
 
 #		define SAMPLER2D(_name, _reg) \
-			uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
-			uniform Texture2D _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture2D _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_SAMPLER, _reg) uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
 			static BgfxSampler2D _name = { _name ## Sampler, _name ## Texture }
 #		define ISAMPLER2D(_name, _reg) \
-			uniform Texture2D<ivec4> _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture2D<ivec4> _name ## Texture : REGISTER(t, _reg); \
 			static BgfxISampler2D _name = { _name ## Texture }
 #		define USAMPLER2D(_name, _reg) \
-			uniform Texture2D<uvec4> _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture2D<uvec4> _name ## Texture : REGISTER(t, _reg); \
 			static BgfxUSampler2D _name = { _name ## Texture }
 #		define sampler2D BgfxSampler2D
 #		define texture2D(_sampler, _coord) bgfxTexture2D(_sampler, _coord)
@@ -364,8 +373,8 @@ vec3 bgfxTextureSize(BgfxSampler3D _sampler, int _lod)
 #		define texture2DGrad(_sampler, _coord, _dPdx, _dPdy) bgfxTexture2DGrad(_sampler, _coord, _dPdx, _dPdy)
 
 #		define SAMPLER2DARRAY(_name, _reg) \
-			uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
-			uniform Texture2DArray _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture2DArray _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_SAMPLER, _reg) uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
 			static BgfxSampler2DArray _name = { _name ## Sampler, _name ## Texture }
 #		define sampler2DArray BgfxSampler2DArray
 #		define texture2DArray(_sampler, _coord) bgfxTexture2DArray(_sampler, _coord)
@@ -373,42 +382,42 @@ vec3 bgfxTextureSize(BgfxSampler3D _sampler, int _lod)
 #		define texture2DArrayLodOffset(_sampler, _coord, _level, _offset) bgfxTexture2DArrayLodOffset(_sampler, _coord, _level, _offset)
 
 #		define SAMPLER2DMS(_name, _reg) \
-			uniform Texture2DMS<vec4> _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture2DMS<vec4> _name ## Texture : REGISTER(t, _reg); \
 			static BgfxSampler2DMS _name = { _name ## Texture }
 #		define sampler2DMS BgfxSampler2DMS
 
 #		define SAMPLER2DSHADOW(_name, _reg) \
-			uniform SamplerComparisonState _name ## SamplerComparison : REGISTER(s, _reg); \
-			uniform Texture2D _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture2D _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_SAMPLER, _reg) uniform SamplerComparisonState _name ## SamplerComparison : REGISTER(s, _reg); \
 			static BgfxSampler2DShadow _name = { _name ## SamplerComparison, _name ## Texture }
 #		define sampler2DShadow BgfxSampler2DShadow
 #		define shadow2D(_sampler, _coord) bgfxShadow2D(_sampler, _coord)
 #		define shadow2DProj(_sampler, _coord) bgfxShadow2DProj(_sampler, _coord)
 
 #		define SAMPLER2DARRAYSHADOW(_name, _reg) \
-			uniform SamplerComparisonState _name ## SamplerComparison : REGISTER(s, _reg); \
-			uniform Texture2DArray _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture2DArray _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_SAMPLER, _reg) uniform SamplerComparisonState _name ## SamplerComparison : REGISTER(s, _reg); \
 			static BgfxSampler2DArrayShadow _name = { _name ## SamplerComparison, _name ## Texture }
 #		define sampler2DArrayShadow BgfxSampler2DArrayShadow
 #		define shadow2DArray(_sampler, _coord) bgfxShadow2DArray(_sampler, _coord)
 
 #		define SAMPLER3D(_name, _reg) \
-			uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
-			uniform Texture3D _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture3D _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_SAMPLER, _reg) uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
 			static BgfxSampler3D _name = { _name ## Sampler, _name ## Texture }
 #		define ISAMPLER3D(_name, _reg) \
-			uniform Texture3D<ivec4> _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture3D<ivec4> _name ## Texture : REGISTER(t, _reg); \
 			static BgfxISampler3D _name = { _name ## Texture }
 #		define USAMPLER3D(_name, _reg) \
-			uniform Texture3D<uvec4> _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform Texture3D<uvec4> _name ## Texture : REGISTER(t, _reg); \
 			static BgfxUSampler3D _name = { _name ## Texture }
 #		define sampler3D BgfxSampler3D
 #		define texture3D(_sampler, _coord) bgfxTexture3D(_sampler, _coord)
 #		define texture3DLod(_sampler, _coord, _level) bgfxTexture3DLod(_sampler, _coord, _level)
 
 #		define SAMPLERCUBE(_name, _reg) \
-			uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
-			uniform TextureCube _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform TextureCube _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_SAMPLER, _reg) uniform SamplerState _name ## Sampler : REGISTER(s, _reg); \
 			static BgfxSamplerCube _name = { _name ## Sampler, _name ## Texture }
 #		define samplerCube BgfxSamplerCube
 #		define textureCube(_sampler, _coord) bgfxTextureCube(_sampler, _coord)
@@ -416,8 +425,8 @@ vec3 bgfxTextureSize(BgfxSampler3D _sampler, int _lod)
 #		define textureCubeLod(_sampler, _coord, _level) bgfxTextureCubeLod(_sampler, _coord, _level)
 
 #		define SAMPLERCUBESHADOW(_name, _reg) \
-			uniform SamplerComparisonState _name ## SamplerComparison : REGISTER(s, _reg); \
-			uniform TextureCube _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_TEXTURE, _reg) uniform TextureCube _name ## Texture : REGISTER(t, _reg); \
+			LAYOUT(BIND_SET_SAMPLER, _reg) uniform SamplerComparisonState _name ## SamplerComparison : REGISTER(s, _reg); \
 			static BgfxSamplerCubeShadow _name = { _name ## SamplerComparison, _name ## Texture }
 #		define samplerCubeShadow BgfxSamplerCubeShadow
 #		define shadowCube(_sampler, _coord) bgfxShadowCube(_sampler, _coord)

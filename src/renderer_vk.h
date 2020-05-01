@@ -272,17 +272,6 @@ namespace bgfx { namespace vk
 {
 
 #define VK_DESTROY_FUNC(_name)                                           \
-			struct Vk##_name                                             \
-			{                                                            \
-				::Vk##_name vk;                                          \
-				Vk##_name() {}                                           \
-				Vk##_name(::Vk##_name _vk) : vk(_vk) {}                  \
-				operator ::Vk##_name() { return vk; }                    \
-				operator ::Vk##_name() const { return vk; }              \
-				::Vk##_name* operator &() { return &vk; }                \
-				const ::Vk##_name* operator &() const { return &vk; }    \
-			};                                                           \
-			BX_STATIC_ASSERT(sizeof(::Vk##_name) == sizeof(Vk##_name) ); \
 			void vkDestroy(Vk##_name&)
 VK_DESTROY
 #undef VK_DESTROY_FUNC
@@ -351,6 +340,12 @@ VK_DESTROY
 		HashMap m_hashMap;
 	};
 
+	class DescriptorSetVK
+	{
+	public:
+		VkDescriptorSet m_sets[4];
+	};
+
 	class ScratchBufferVK
 	{
 	public:
@@ -366,12 +361,12 @@ VK_DESTROY
 		void destroy();
 		void reset();
 
-		VkDescriptorSet& getCurrentDS()
+		DescriptorSetVK& getCurrentDS()
 		{
 			return m_descriptorSet[m_currentDs - 1];
 		}
 
-		VkDescriptorSet* m_descriptorSet;
+		DescriptorSetVK* m_descriptorSet; // [1024];
 		VkBuffer m_buffer;
 		VkDeviceMemory m_deviceMem;
 		uint8_t* m_data;
@@ -429,6 +424,25 @@ VK_DESTROY
 		VertexLayoutHandle m_layoutHandle;
 	};
 
+	struct BindType
+	{
+		enum Enum
+		{
+			Buffer,
+			Image,
+			Sampler,
+
+			Count
+		};
+	};
+
+	struct BindInfo
+	{
+		UniformHandle uniformHandle = BGFX_INVALID_HANDLE;
+		BindType::Enum type;
+		uint32_t binding;
+	};
+
 	struct ShaderVK
 	{
 		ShaderVK()
@@ -439,7 +453,7 @@ VK_DESTROY
 			, m_numUniforms(0)
 			, m_numPredefined(0)
 			, m_uniformBinding(0)
-			, m_numBindings(0)
+			, m_numBindings{}
 		{
 		}
 
@@ -460,29 +474,11 @@ VK_DESTROY
 		uint8_t m_numPredefined;
 		uint8_t m_numAttrs;
 
-		struct BindType
-		{
-			enum Enum
-			{
-				Storage,
-				Sampler,
-
-				Count
-			};
-		};
-
-		struct BindInfo
-		{
-			UniformHandle uniformHandle;
-			BindType::Enum type;
-			uint32_t binding;
-			uint32_t samplerBinding;
-		};
-
 		BindInfo m_bindInfo[BGFX_CONFIG_MAX_TEXTURE_SAMPLERS];
 		uint32_t m_uniformBinding;
-		uint16_t m_numBindings;
-		VkDescriptorSetLayoutBinding m_bindings[32];
+
+		uint16_t m_numBindings[4];
+		VkDescriptorSetLayoutBinding m_bindings[4][16];
 	};
 
 	struct ProgramVK
@@ -491,6 +487,7 @@ VK_DESTROY
 			: m_vsh(NULL)
 			, m_fsh(NULL)
 			, m_descriptorSetLayoutHash(0)
+			, m_descriptorSetLayout{}
 			, m_pipelineLayout(VK_NULL_HANDLE)
 		{
 		}
@@ -501,10 +498,14 @@ VK_DESTROY
 		const ShaderVK* m_vsh;
 		const ShaderVK* m_fsh;
 
+		BindInfo m_bindInfo[BGFX_CONFIG_MAX_TEXTURE_SAMPLERS];
+
 		PredefinedUniform m_predefined[PredefinedUniform::Count * 2];
 		uint8_t m_numPredefined;
 
 		uint32_t m_descriptorSetLayoutHash;
+
+		VkDescriptorSetLayout m_descriptorSetLayout[4];
 		VkPipelineLayout m_pipelineLayout;
 	};
 

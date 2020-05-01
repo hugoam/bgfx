@@ -97,13 +97,13 @@
 #define rgba32f  float4
 
 #define IMAGE2D_RO( _name, _format, _reg)                         \
-	Texture2D<_format> _name ## Texture : REGISTER(t, _reg);      \
+	LAYOUT(BIND_SET_STORAGE, _reg) Texture2D<_format> _name ## Texture : REGISTER(t, _reg);      \
 	static BgfxROImage2D_ ## _format _name = { _name ## Texture }
 
 #define UIMAGE2D_RO(_name, _format, _reg) IMAGE2D_RO(_name, _format, _reg)
 
 #define IMAGE2D_RW( _name, _format, _reg)                       \
-	RWTexture2D<_format> _name ## Texture : REGISTER(u, _reg);  \
+	LAYOUT(BIND_SET_STORAGE, _reg) RWTexture2D<_format> _name ## Texture : REGISTER(u, _reg);  \
 	static BgfxRWImage2D_ ## _format _name = { _name ## Texture }
 
 #define IMAGE2D_WR( _name, _format, _reg) IMAGE2D_RW(_name, _format, _reg)
@@ -111,13 +111,13 @@
 #define UIMAGE2D_RW(_name, _format, _reg) IMAGE2D_RW(_name, _format, _reg)
 
 #define IMAGE2D_ARRAY_RO(_name, _format, _reg)                       \
-	Texture2DArray<_format> _name ## Texture : REGISTER(t, _reg);    \
+	LAYOUT(BIND_SET_STORAGE, _reg) Texture2DArray<_format> _name ## Texture : REGISTER(t, _reg);    \
 	static BgfxROImage2DArray_ ## _format _name = { _name ## Texture }
 
 #define UIMAGE2D_ARRAY_RO(_name, _format, _reg) IMAGE2D_ARRAY_RO(_name, _format, _reg)
 
 #define IMAGE2D_ARRAY_RW(_name, _format, _reg)                         \
-	RWTexture2DArray<_format> _name ## Texture : REGISTER(u, _reg);    \
+	LAYOUT(BIND_SET_STORAGE, _reg) RWTexture2DArray<_format> _name ## Texture : REGISTER(u, _reg);    \
 	static BgfxRWImage2DArray_ ## _format _name = { _name ## Texture }
 
 #define UIMAGE2D_ARRAY_RW(_name, _format, _reg) IMAGE2D_ARRAY_RW(_name, _format, _reg)
@@ -125,13 +125,13 @@
 #define UIMAGE2D_ARRAY_WR(_name, _format, _reg) IMAGE2D_ARRAY_RW(_name, _format, _reg)
 
 #define IMAGE3D_RO( _name, _format, _reg)                       \
-	Texture3D<_format> _name ## Texture : REGISTER(t, _reg);    \
+	LAYOUT(BIND_SET_STORAGE, _reg) Texture3D<_format> _name ## Texture : REGISTER(t, _reg);    \
 	static BgfxROImage3D_ ## _format _name = { _name ## Texture }
 
 #define UIMAGE3D_RO(_name, _format, _reg) IMAGE3D_RO(_name, _format, _reg)
 
 #define IMAGE3D_RW( _name, _format, _reg)                       \
-	RWTexture3D<_format> _name ## Texture : REGISTER(u, _reg);  \
+	LAYOUT(BIND_SET_STORAGE, _reg) RWTexture3D<_format> _name ## Texture : REGISTER(u, _reg);  \
 	static BgfxRWImage3D_ ## _format _name = { _name ## Texture }
 
 #define UIMAGE3D_RW(_name, _format, _reg) IMAGE3D_RW(_name, _format, _reg)
@@ -139,8 +139,8 @@
 #define UIMAGE3D_WR(_name, _format, _reg) IMAGE3D_RW(_name, _format, _reg)
 
 #if BGFX_SHADER_LANGUAGE_METAL || BGFX_SHADER_LANGUAGE_SPIRV
-#define BUFFER_RO(_name, _struct, _reg) StructuredBuffer<_struct>   _name : REGISTER(t, _reg)
-#define BUFFER_RW(_name, _struct, _reg) RWStructuredBuffer <_struct> _name : REGISTER(u, _reg)
+#define BUFFER_RO(_name, _struct, _reg) LAYOUT(BIND_SET_STORAGE, _reg) StructuredBuffer<_struct>    _name : REGISTER(t, _reg)
+#define BUFFER_RW(_name, _struct, _reg) LAYOUT(BIND_SET_STORAGE, _reg) RWStructuredBuffer <_struct> _name : REGISTER(u, _reg)
 #define BUFFER_WR(_name, _struct, _reg) BUFFER_RW(_name, _struct, _reg)
 #else
 #define BUFFER_RO(_name, _struct, _reg) Buffer<_struct>   _name : REGISTER(t, _reg)
