@@ -454,7 +454,6 @@ namespace bgfx { namespace webgpu
 			setGraphicsDebuggerPresent(NULL != m_renderDocDll);
 
 			m_fbh.idx = kInvalidHandle;
-			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
 			bx::memSet(&m_resolution, 0, sizeof(m_resolution) );
 
 #if !BX_PLATFORM_EMSCRIPTEN
@@ -1008,22 +1007,13 @@ namespace bgfx { namespace webgpu
 
 		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformSet::Enum _freq) override
 		{
-			if (NULL != m_uniforms[_handle.idx])
-			{
-				BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			}
-
-			uint32_t size = bx::alignUp(g_uniformTypeSize[_type]*_num, 16);
-			void* data = BX_ALLOC(g_allocator, size);
-			bx::memSet(data, 0, size);
-			m_uniforms[_handle.idx] = data;
+			m_uniforms.createUniform(_handle, _type, _num, _freq);
 			m_uniformReg.add(_handle, _name, _freq);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
 		{
-			BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			m_uniforms[_handle.idx] = NULL;
+			m_uniforms.destroyUniform(_handle);
 			m_uniformReg.remove(_handle);
 		}
 
@@ -1043,7 +1033,7 @@ namespace bgfx { namespace webgpu
 
 		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size) override
 		{
-			bx::memCopy(m_uniforms[_loc], _data, _size);
+			m_uniforms.updateUniform(_loc, _data, _size);
 		}
 
 		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) override
@@ -1455,80 +1445,17 @@ namespace bgfx { namespace webgpu
 			setShaderUniform(_flags, _loc, _val, _numRegs);
 		}
 
-		void commit(UniformBuffer& _uniformBuffer)
+		void commitShaderConstants(ScratchBufferWgpu& _scratchBuffer, const ProgramWgpu& _program, uint32_t _vertexOffset, uint32_t _fragmentOffset)
 		{
-			_uniformBuffer.reset();
+			const uint32_t size = _program.m_vsh->m_gpuSize;
+			if (0 != size)
+				_scratchBuffer.write(m_vsScratch, size);
 
-			for (;;)
+			if(NULL != _program.m_fsh)
 			{
-				uint32_t opcode = _uniformBuffer.read();
-
-				if (UniformType::End == opcode)
-				{
-					break;
-				}
-
-				UniformType::Enum type;
-				uint16_t loc;
-				uint16_t num;
-				uint16_t copy;
-				UniformBuffer::decodeOpcode(opcode, type, loc, num, copy);
-
-				const char* data;
-				if (copy)
-				{
-					data = _uniformBuffer.read(g_uniformTypeSize[type]*num);
-				}
-				else
-				{
-					UniformHandle handle;
-					bx::memCopy(&handle, _uniformBuffer.read(sizeof(UniformHandle) ), sizeof(UniformHandle) );
-					data = (const char*)m_uniforms[handle.idx];
-				}
-
-				switch ( (uint32_t)type)
-				{
-				case UniformType::Mat3:
-				case UniformType::Mat3|kUniformFragmentBit:
-					{
-						float* value = (float*)data;
-						for (uint32_t ii = 0, count = num/3; ii < count; ++ii,  loc += 3*16, value += 9)
-						{
-							Matrix4 mtx;
-							mtx.un.val[ 0] = value[0];
-							mtx.un.val[ 1] = value[1];
-							mtx.un.val[ 2] = value[2];
-							mtx.un.val[ 3] = 0.0f;
-							mtx.un.val[ 4] = value[3];
-							mtx.un.val[ 5] = value[4];
-							mtx.un.val[ 6] = value[5];
-							mtx.un.val[ 7] = 0.0f;
-							mtx.un.val[ 8] = value[6];
-							mtx.un.val[ 9] = value[7];
-							mtx.un.val[10] = value[8];
-							mtx.un.val[11] = 0.0f;
-							setShaderUniform(uint8_t(type), loc, &mtx.un.val[0], 3);
-						}
-					}
-					break;
-
-				case UniformType::Sampler:
-				case UniformType::Sampler | kUniformFragmentBit:
-				case UniformType::Vec4:
-				case UniformType::Vec4 | kUniformFragmentBit:
-				case UniformType::Mat4:
-				case UniformType::Mat4 | kUniformFragmentBit:
-					{
-						setShaderUniform(uint8_t(type), loc, data, num);
-					}
-					break;
-				case UniformType::End:
-					break;
-
-				default:
-					BX_TRACE("%4d: INVALID 0x%08x, t %d, l %d, n %d, c %d", _uniformBuffer.getPos(), opcode, type, loc, num, copy);
-					break;
-				}
+				const uint32_t size = _program.m_fsh->m_gpuSize;
+				if(0 != size)
+					_scratchBuffer.write(m_fsScratch, size);
 			}
 		}
 
@@ -2411,7 +2338,7 @@ namespace bgfx { namespace webgpu
 		FrameBufferWgpu  m_frameBuffers[BGFX_CONFIG_MAX_FRAME_BUFFERS];
 		VertexLayout     m_vertexDecls[BGFX_CONFIG_MAX_VERTEX_LAYOUTS];
 		UniformRegistry  m_uniformReg;
-		void*            m_uniforms[BGFX_CONFIG_MAX_UNIFORMS];
+		UniformState     m_uniforms;
 
 		//StateCacheT<BindStateWgpu*>   m_bindStateCache;
 		StateCacheT<RenderPassStateWgpu*> m_renderPassStateCache;
@@ -4366,11 +4293,11 @@ namespace bgfx { namespace webgpu
 						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformSet::Submit];
 						if (NULL != vcb)
 						{
-							commit(*program.m_vsh, *vcb);
+							m_uniforms.commitUniforms(*this, *vcb);
 						}
 					}
 
-					viewState.setPredefined<4>(this, view, program, _render, compute, programChanged || viewChanged);
+					viewState.setPredefined<4>(*this, view, program, _render, compute, programChanged || viewChanged);
 
 					uint32_t numOffset = 0;
 					uint32_t offsets[2] = { 0, 0 };
@@ -4635,12 +4562,12 @@ namespace bgfx { namespace webgpu
 				{
 					const ProgramWgpu& program = m_program[currentProgram.idx];
 
-					auto commitConstants = [&](bgfx::UniformSet::Enum freq)
+					auto commitConstants = [&](auto& destBuffer, bgfx::UniformSet::Enum freq)
 					{
 						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[freq];
 						if (NULL != vcb)
 						{
-							commit(*program.m_vsh, *vcb);
+							m_uniforms.commitUniforms(destBuffer, *vcb);
 						}
 
 						if (NULL != program.m_fsh)
@@ -4648,7 +4575,7 @@ namespace bgfx { namespace webgpu
 							UniformBuffer* fcb = program.m_fsh->m_constantBuffer[freq];
 							if (NULL != fcb)
 							{
-								commit(*program.m_fsh, *fcb);
+								m_uniforms.commitUniforms(destBuffer, *fcb);
 							}
 						}
 					};
@@ -4656,29 +4583,29 @@ namespace bgfx { namespace webgpu
 					// data is stored globally in xxScratch, so we must update that each type the program changes
 					if (programChanged)
 					{
-						commitConstants(UniformSet::Frame);
+						commitConstants(*this, UniformSet::Frame);
 						constantsChanged = true;
 					}
 
 					if (programChanged)
 					{
-						commitConstants(UniformSet::View);
+						commitConstants(*this, UniformSet::View);
 						constantsChanged = true;
 					}
 
 					if (groupChanged)
 					{
-						commitConstants(UniformSet::Group);
+						commitConstants(*this, UniformSet::Group);
 						constantsChanged = true;
 					}
 
 					if (submitConstants)
 					{
-						commitConstants(UniformSet::Submit);
+						commitConstants(*this, UniformSet::Submit);
 						constantsChanged = true;
 					}
 
-					viewState.setPredefined<4>(this, view, program, _render, draw, true); // programChanged || viewChanged);
+					viewState.setPredefined<4>(*this, view, program, _render, draw, true); // programChanged || viewChanged);
 
 					bool hasPredefined = 0 < program.m_numPredefined;
 

@@ -719,7 +719,6 @@ namespace bgfx { namespace d3d11
 			}
 
 			m_fbh.idx = kInvalidHandle;
-			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
 			bx::memSet(&m_resolution, 0, sizeof(m_resolution) );
 
 			m_ags = NULL;
@@ -1944,22 +1943,13 @@ namespace bgfx { namespace d3d11
 
 		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformSet::Enum _freq) override
 		{
-			if (NULL != m_uniforms[_handle.idx])
-			{
-				BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			}
-
-			const uint32_t size = bx::alignUp(g_uniformTypeSize[_type]*_num, 16);
-			void* data = BX_ALLOC(g_allocator, size);
-			bx::memSet(data, 0, size);
-			m_uniforms[_handle.idx] = data;
+			m_uniforms.createUniform(_handle, _type, _num, _freq);
 			m_uniformReg.add(_handle, _name, _freq);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
 		{
-			BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			m_uniforms[_handle.idx] = NULL;
+			m_uniforms.destroyUniform(_handle);
 			m_uniformReg.remove(_handle);
 		}
 
@@ -2056,7 +2046,7 @@ namespace bgfx { namespace d3d11
 
 		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size) override
 		{
-			bx::memCopy(m_uniforms[_loc], _data, _size);
+			m_uniforms.updateUniform(_loc, _data, _size);
 		}
 
 		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) override
@@ -2536,7 +2526,7 @@ namespace bgfx { namespace d3d11
 				bx::memCopy(&m_fsScratch[_regIndex], _val, _numRegs*16);
 				m_fsChanges += _numRegs;
 			}
-			else if (_flags&BGFX_UNIFORM_GEOMETRYBIT)
+			else if (_flags&kUniformGeometryBit)
 			{
 				bx::memCopy(&m_gsScratch[_regIndex], _val, _numRegs*16);
 				m_gsChanges += _numRegs;
@@ -3401,7 +3391,7 @@ namespace bgfx { namespace d3d11
 				{
 					UniformHandle handle;
 					bx::memCopy(&handle, _uniformBuffer.read(sizeof(UniformHandle) ), sizeof(UniformHandle) );
-					data = (const char*)m_uniforms[handle.idx];
+					data = (const char*)m_uniforms.getUniform(handle);
 				}
 
 				switch ( (uint32_t)type)
@@ -3626,7 +3616,7 @@ namespace bgfx { namespace d3d11
 		TextureD3D11 m_textures[BGFX_CONFIG_MAX_TEXTURES];
 		VertexLayout m_vertexLayouts[BGFX_CONFIG_MAX_VERTEX_LAYOUTS];
 		FrameBufferD3D11 m_frameBuffers[BGFX_CONFIG_MAX_FRAME_BUFFERS];
-		void* m_uniforms[BGFX_CONFIG_MAX_UNIFORMS];
+		UniformState m_uniforms;
 		Matrix4 m_predefinedUniforms[PredefinedUniform::Count];
 		UniformRegistry m_uniformReg;
 
@@ -5810,7 +5800,7 @@ namespace bgfx { namespace d3d11
 							}
 						}
 
-						viewState.setPredefined<4>(this, view, program, _render, compute, programChanged || viewChanged);
+						viewState.setPredefined<4>(*this, view, program, _render, compute, programChanged || viewChanged);
 
 						if (constantsChanged
 						||  program.m_numPredefined > 0)
@@ -6180,7 +6170,7 @@ namespace bgfx { namespace d3d11
 						commitConstants(UniformSet::Submit);
 					}
 
-					viewState.setPredefined<4>(this, view, program, _render, draw, true);// programChanged || viewChanged);
+					viewState.setPredefined<4>(*this, view, program, _render, draw, true);// programChanged || viewChanged);
 
 					if (constantsChanged
 					||  programChanged

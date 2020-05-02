@@ -444,7 +444,6 @@ namespace bgfx { namespace d3d9
 			ErrorState::Enum errorState = ErrorState::Default;
 
 			m_fbh.idx = kInvalidHandle;
-			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
 			bx::memSet(&m_resolution, 0, sizeof(m_resolution) );
 
 			D3DFORMAT adapterFormat = D3DFMT_X8R8G8B8;
@@ -1208,22 +1207,13 @@ namespace bgfx { namespace d3d9
 
 		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformSet::Enum _freq) override
 		{
-			if (NULL != m_uniforms[_handle.idx])
-			{
-				BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			}
-
-			const uint32_t size = bx::alignUp(g_uniformTypeSize[_type]*_num, 16);
-			void* data = BX_ALLOC(g_allocator, size);
-			bx::memSet(data, 0, size);
-			m_uniforms[_handle.idx] = data;
+			m_uniforms.createUniform(_handle, _type, _num, _freq);
 			m_uniformReg.add(_handle, _name, _freq);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
 		{
-			BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			m_uniforms[_handle.idx] = NULL;
+			m_uniforms.destroyUniform(_handle);
 			m_uniformReg.remove(_handle);
 		}
 
@@ -1312,7 +1302,7 @@ namespace bgfx { namespace d3d9
 
 		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size) override
 		{
-			bx::memCopy(m_uniforms[_loc], _data, _size);
+			m_uniforms.updateUniform(_loc, _data, _size);
 		}
 
 		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) override
@@ -1891,7 +1881,7 @@ namespace bgfx { namespace d3d9
 				{
 					UniformHandle handle;
 					bx::memCopy(&handle, _uniformBuffer.read(sizeof(UniformHandle) ), sizeof(UniformHandle) );
-					data = (const char*)m_uniforms[handle.idx];
+					data = (const char*)m_uniforms.getUniform(handle);
 				}
 
 #define CASE_IMPLEMENT_UNIFORM(_uniform, _dxsuffix, _type) \
@@ -2240,7 +2230,7 @@ namespace bgfx { namespace d3d9
 		VertexLayout m_vertexLayouts[BGFX_CONFIG_MAX_VERTEX_LAYOUTS];
 		FrameBufferD3D9 m_frameBuffers[BGFX_CONFIG_MAX_FRAME_BUFFERS];
 		UniformRegistry m_uniformReg;
-		void* m_uniforms[BGFX_CONFIG_MAX_UNIFORMS];
+		UniformState m_uniforms;
 
 		uint64_t m_samplerFlags[BGFX_CONFIG_MAX_TEXTURE_SAMPLERS];
 
@@ -4214,7 +4204,7 @@ namespace bgfx { namespace d3d9
 						commitConstants(UniformSet::Submit);
 					}
 
-					viewState.setPredefined<1>(this, view, program, _render, draw, programChanged || viewChanged);
+					viewState.setPredefined<1>(*this, view, program, _render, draw, programChanged || viewChanged);
 				}
 
 				{
