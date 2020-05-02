@@ -463,8 +463,10 @@ VK_DESTROY
 		{
 		}
 
-		void create(const Memory* _mem);
+		void create(ShaderHandle _handle, const Memory* _mem);
 		void destroy();
+
+		ShaderHandle m_handle;
 
 		const Memory* m_code;
 		VkShaderModule m_module;

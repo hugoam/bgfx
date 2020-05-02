@@ -2528,7 +2528,7 @@ VK_IMPORT_DEVICE
 
 		void createShader(ShaderHandle _handle, const Memory* _mem) override
 		{
-			m_shaders[_handle.idx].create(_mem);
+			m_shaders[_handle.idx].create(_handle, _mem);
 		}
 
 		void destroyShader(ShaderHandle _handle) override
@@ -4717,8 +4717,12 @@ VK_DESTROY
 		m_layoutHandle = _layoutHandle;
 	}
 
-	void ShaderVK::create(const Memory* _mem)
+	void ShaderVK::create(ShaderHandle _handle, const Memory* _mem)
 	{
+		BX_TRACE("Create shader %s", getName(_handle));
+
+		m_handle = _handle;
+
 		bx::MemoryReader reader(_mem->data, _mem->size);
 
 		uint32_t magic;
@@ -5890,7 +5894,10 @@ VK_DESTROY
 		uint32_t currentDslHash         = 0;
 		bool     hasPredefined          = false;
 		bool     commandListChanged     = false;
-		VkPipeline currentPipeline = VK_NULL_HANDLE;
+		VkPipeline currentPipeline      = VK_NULL_HANDLE;
+		VkBuffer currentVertexBuffer    = VK_NULL_HANDLE;
+		VkBuffer currentInstanceBuffer  = VK_NULL_HANDLE;
+		VkBuffer currentIndexBuffer     = VK_NULL_HANDLE;
 		SortKey key;
 		uint16_t view = UINT16_MAX;
 		FrameBufferHandle fbh = { BGFX_CONFIG_MAX_FRAME_BUFFERS };
@@ -6141,15 +6148,19 @@ VK_DESTROY
 //						m_commandList->SetComputeRootConstantBufferView(Rdt::CBV, gpuAddress);
 					}
 
-					if (program.m_descriptorSetLayoutHash != 0)
+					if (0 != program.m_descriptorSetLayoutHash
+					&&  currentDslHash  != program.m_descriptorSetLayoutHash)
 					{
-						uint32_t bindHash = bx::hash<bx::HashMurmur2A>(renderBind.m_bind, sizeof(renderBind.m_bind) );
+						currentDslHash  = program.m_descriptorSetLayoutHash;
 
-						if (currentBindHash != bindHash
-						||  currentDslHash  != program.m_descriptorSetLayoutHash)
+						uint32_t bindHash = bx::hash<bx::HashMurmur2A>(renderBind.m_bind, sizeof(renderBind.m_bind));
+
+						if (currentBindHash != bindHash)
 						{
 							currentBindHash = bindHash;
-							currentDslHash  = program.m_descriptorSetLayoutHash;
+							allocDescriptorSet(program, renderBind, scratchBuffer);
+						}
+					}
 
 							allocDescriptorSet(program, renderBind, scratchBuffer);
 						}
@@ -6419,10 +6430,13 @@ VK_DESTROY
 							commit(*vcb);
 						}
 
-						UniformBuffer* fcb = program.m_fsh->m_constantBuffer;
-						if (NULL != fcb)
+						if (program.m_fsh)
 						{
-							commit(*fcb);
+							UniformBuffer* fcb = program.m_fsh->m_constantBuffer;
+							if (NULL != fcb)
+							{
+								commit(*fcb);
+							}
 						}
 
 						hasPredefined = 0 < program.m_numPredefined;
@@ -6438,14 +6452,19 @@ VK_DESTROY
 						viewState.setPredefined<4>(this, view, program, _render, draw);
 					}
 
-					if (program.m_descriptorSetLayoutHash != 0)
+					if (0 != program.m_descriptorSetLayoutHash
+					&&  currentDslHash  != program.m_descriptorSetLayoutHash)
 					{
-						uint32_t bindHash = bx::hash<bx::HashMurmur2A>(renderBind.m_bind, sizeof(renderBind.m_bind) );
-						if (currentBindHash != bindHash
-						||  currentDslHash  != program.m_descriptorSetLayoutHash)
+						currentDslHash  = program.m_descriptorSetLayoutHash;
+
+						uint32_t bindHash = bx::hash<bx::HashMurmur2A>(renderBind.m_bind, sizeof(renderBind.m_bind));
+
+						if (currentBindHash != bindHash)
 						{
 							currentBindHash = bindHash;
-							currentDslHash  = program.m_descriptorSetLayoutHash;
+							allocDescriptorSet(program, renderBind, scratchBuffer);
+						}
+					}
 
 							allocDescriptorSet(program, renderBind, scratchBuffer);
 						}
@@ -6504,24 +6523,33 @@ VK_DESTROY
 					for (uint32_t ii = 0; ii < numStreams; ++ii)
 					{
 						VkDeviceSize offset = 0;
-						vkCmdBindVertexBuffers(m_commandBuffer
-							, ii
-							, 1
-							, &m_vertexBuffers[draw.m_stream[ii].m_handle.idx].m_buffer
-							, &offset
-							);
+						VkBuffer buffer = m_vertexBuffers[draw.m_stream[ii].m_handle.idx].m_buffer;
+						if (buffer != currentVertexBuffer)
+						{
+							vkCmdBindVertexBuffers(m_commandBuffer
+								, ii
+								, 1
+								, &buffer
+								, &offset
+								);
+							currentVertexBuffer = buffer;
+						}
 					}
 
 					if (isValid(draw.m_instanceDataBuffer))
 					{
 						VkDeviceSize instanceOffset = draw.m_instanceDataOffset;
-						VertexBufferVK& instanceBuffer = m_vertexBuffers[draw.m_instanceDataBuffer.idx];
-						vkCmdBindVertexBuffers(m_commandBuffer
-							, numStreams
-							, 1
-							, &instanceBuffer.m_buffer
-							, &instanceOffset
-							);
+						VkBuffer buffer = m_vertexBuffers[draw.m_instanceDataBuffer.idx].m_buffer;
+						if (buffer != currentInstanceBuffer)
+						{
+							vkCmdBindVertexBuffers(m_commandBuffer
+								, numStreams
+								, 1
+								, &buffer
+								, &instanceOffset
+								);
+							currentInstanceBuffer = buffer;
+						}
 					}
 
 					if (!isValid(draw.m_indexBuffer) )
@@ -6552,13 +6580,19 @@ VK_DESTROY
 							: draw.m_numIndices
 							;
 
-						vkCmdBindIndexBuffer(m_commandBuffer
-							, ib.m_buffer
-							, 0
-							, hasIndex16
-								? VK_INDEX_TYPE_UINT16
-								: VK_INDEX_TYPE_UINT32
-							);
+						VkBuffer buffer = ib.m_buffer;
+						if (buffer != currentIndexBuffer)
+						{
+							vkCmdBindIndexBuffer(m_commandBuffer
+								, ib.m_buffer
+								, 0
+								, hasIndex16
+									? VK_INDEX_TYPE_UINT16
+									: VK_INDEX_TYPE_UINT32
+								);
+							currentIndexBuffer = buffer;
+						}
+
 						vkCmdDrawIndexed(m_commandBuffer
 							, numIndices
 							, draw.m_numInstances
