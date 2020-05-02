@@ -2191,7 +2191,6 @@ namespace bgfx { namespace gl
 			}
 
 			m_fbh.idx = kInvalidHandle;
-			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
 			bx::memSet(&m_resolution, 0, sizeof(m_resolution) );
 
 			setRenderContextSize(_init.resolution.width, _init.resolution.height);
@@ -3392,22 +3391,13 @@ namespace bgfx { namespace gl
 
 		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name) override
 		{
-			if (NULL != m_uniforms[_handle.idx])
-			{
-				BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			}
-
-			uint32_t size = g_uniformTypeSize[_type]*_num;
-			void* data = BX_ALLOC(g_allocator, size);
-			bx::memSet(data, 0, size);
-			m_uniforms[_handle.idx] = data;
+			m_uniforms.createUniform(_handle, _type, _num);
 			m_uniformReg.add(_handle, _name);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
 		{
-			BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			m_uniforms[_handle.idx] = NULL;
+			m_uniforms.destroyUniform(_handle);
 			m_uniformReg.remove(_handle);
 		}
 
@@ -3465,7 +3455,7 @@ namespace bgfx { namespace gl
 
 		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size) override
 		{
-			bx::memCopy(m_uniforms[_loc], _data, _size);
+			m_uniforms.updateUniform(_loc, _data, _size);
 		}
 
 		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) override
@@ -4118,7 +4108,7 @@ namespace bgfx { namespace gl
 				{
 					UniformHandle handle;
 					bx::memCopy(&handle, _uniformBuffer.read(sizeof(UniformHandle) ), sizeof(UniformHandle) );
-					data = (const char*)m_uniforms[handle.idx];
+					data = (const char*)m_uniforms.getUniform(handle);
 				}
 
 				uint32_t loc = _uniformBuffer.read();
@@ -4437,7 +4427,7 @@ namespace bgfx { namespace gl
 		VertexLayout m_vertexLayouts[BGFX_CONFIG_MAX_VERTEX_LAYOUTS];
 		FrameBufferGL m_frameBuffers[BGFX_CONFIG_MAX_FRAME_BUFFERS];
 		UniformRegistry m_uniformReg;
-		void* m_uniforms[BGFX_CONFIG_MAX_UNIFORMS];
+		UniformState m_uniforms;
 
 		TimerQueryGL m_gpuTimer;
 		OcclusionQueryGL m_occlusionQuery;
@@ -7310,7 +7300,7 @@ namespace bgfx { namespace gl
 								commit(*program.m_constantBuffer);
 							}
 
-							viewState.setPredefined<1>(this, view, program, _render, compute);
+							viewState.setPredefined<1>(*this, view, program, _render, compute);
 
 							if (isValid(compute.m_indirectBuffer) )
 							{
@@ -7762,7 +7752,7 @@ namespace bgfx { namespace gl
 						commit(*program.m_constantBuffer);
 					}
 
-					viewState.setPredefined<1>(this, view, program, _render, draw);
+					viewState.setPredefined<1>(*this, view, program, _render, draw);
 
 					{
 						GLbitfield barrier = 0;

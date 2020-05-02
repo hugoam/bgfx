@@ -58,6 +58,128 @@ namespace bgfx
 		uint16_t m_item;
 	};
 
+	struct UniformState
+	{
+		UniformState()
+		{
+			bx::memSet(m_uniforms, 0, sizeof(m_uniforms));
+		}
+
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num)
+		{
+			if (NULL != m_uniforms[_handle.idx])
+			{
+				BX_FREE(g_allocator, m_uniforms[_handle.idx]);
+			}
+
+			const uint32_t size = bx::alignUp(g_uniformTypeSize[_type]*_num, 16);
+			void* data = BX_ALLOC(g_allocator, size);
+			bx::memSet(data, 0, size);
+			m_uniforms[_handle.idx] = data;
+		}
+
+		void destroyUniform(UniformHandle _handle)
+		{
+			BX_FREE(g_allocator, m_uniforms[_handle.idx]);
+			m_uniforms[_handle.idx] = NULL;
+		}
+
+		void* getUniform(UniformHandle _handle)
+		{
+			return m_uniforms[_handle.idx];
+		}
+
+		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size)
+		{
+			bx::memCopy(m_uniforms[_loc], _data, _size);
+		}
+
+		template <typename UniformBufferImpl>
+		void commitUniforms(UniformBufferImpl& _destBuffer, UniformBuffer& _uniformBuffer, bool samplers = true, uint32_t _begin = 0, uint32_t _end = UINT32_MAX)
+		{
+			_uniformBuffer.reset(_begin);
+			while (_uniformBuffer.getPos() < _end)
+			{
+				uint32_t opcode = _uniformBuffer.read();
+
+				if (UniformType::End == opcode)
+				{
+					break;
+				}
+
+				UniformType::Enum type;
+				uint16_t loc;
+				uint16_t num;
+				uint16_t copy;
+				UniformBuffer::decodeOpcode(opcode, type, loc, num, copy);
+
+				const char* data;
+				if (copy)
+				{
+					data = _uniformBuffer.read(g_uniformTypeSize[type] * num);
+				}
+				else
+				{
+					UniformHandle handle;
+					bx::memCopy(&handle, _uniformBuffer.read(sizeof(UniformHandle)), sizeof(UniformHandle));
+					data = (const char*)m_uniforms[handle.idx];
+				}
+
+				switch ((uint32_t)type)
+				{
+				case UniformType::Mat3:
+				case UniformType::Mat3|kUniformFragmentBit:
+				{
+					float* value = (float*)data;
+					for (uint32_t ii = 0, count = num / 3; ii < count; ++ii, loc += 3 * 16, value += 9)
+					{
+						Matrix4 mtx;
+						mtx.un.val[0] = value[0];
+						mtx.un.val[1] = value[1];
+						mtx.un.val[2] = value[2];
+						mtx.un.val[3] = 0.0f;
+						mtx.un.val[4] = value[3];
+						mtx.un.val[5] = value[4];
+						mtx.un.val[6] = value[5];
+						mtx.un.val[7] = 0.0f;
+						mtx.un.val[8] = value[6];
+						mtx.un.val[9] = value[7];
+						mtx.un.val[10] = value[8];
+						mtx.un.val[11] = 0.0f;
+						_destBuffer.setShaderUniform(uint8_t(type), loc, &mtx.un.val[0], 3);
+					}
+				}
+				break;
+
+				case UniformType::Sampler:
+				case UniformType::Sampler|kUniformFragmentBit:
+				{
+					if (samplers)
+						_destBuffer.setShaderUniform(uint8_t(type), loc, data, num);
+				}
+				break;
+				case UniformType::Vec4:
+				case UniformType::Vec4|kUniformFragmentBit:
+				case UniformType::Mat4:
+				case UniformType::Mat4|kUniformFragmentBit:
+				{
+					_destBuffer.setShaderUniform(uint8_t(type), loc, data, num);
+				}
+				break;
+				case UniformType::End:
+					break;
+
+				default:
+					BX_TRACE("%4d: INVALID 0x%08x, t %d, l %d, n %d, c %d", _uniformBuffer.getPos(), opcode, type, loc, num, copy);
+					break;
+				}
+			}
+		}
+
+	private:
+		void* m_uniforms[BGFX_CONFIG_MAX_UNIFORMS];
+	};
+
 	struct ViewState
 	{
 		ViewState()
@@ -92,8 +214,8 @@ namespace bgfx
 			}
 		}
 
-		template<uint16_t mtxRegs, typename RendererContext, typename Program, typename Draw>
-		void setPredefined(RendererContext* _renderer, uint16_t _view, const Program& _program, const Frame* _frame, const Draw& _draw)
+		template<uint16_t mtxRegs, typename UniformBufferImpl, typename Program, typename Draw>
+		void setPredefined(UniformBufferImpl& _destBuffer, uint16_t _view, const Program& _program, const Frame* _frame, const Draw& _draw)
 		{
 			const FrameCache& frameCache = _frame->m_frameCache;
 
@@ -111,7 +233,7 @@ namespace bgfx
 						frect[2] = m_rect.m_width;
 						frect[3] = m_rect.m_height;
 
-						_renderer->setShaderUniform4f(flags
+						_destBuffer.setShaderUniform4f(flags
 							, predefined.m_loc
 							, &frect[0]
 							, 1
@@ -125,7 +247,7 @@ namespace bgfx
 						frect[0] = 1.0f/float(m_rect.m_width);
 						frect[1] = 1.0f/float(m_rect.m_height);
 
-						_renderer->setShaderUniform4f(flags
+						_destBuffer.setShaderUniform4f(flags
 							, predefined.m_loc
 							, &frect[0]
 							, 1
@@ -135,7 +257,7 @@ namespace bgfx
 
 				case PredefinedUniform::View:
 					{
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, m_view[_view].un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -153,7 +275,7 @@ namespace bgfx
 								);
 						}
 
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, m_invView.un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -163,7 +285,7 @@ namespace bgfx
 
 				case PredefinedUniform::Proj:
 					{
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, _frame->m_view[_view].m_proj.un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -181,7 +303,7 @@ namespace bgfx
 								);
 						}
 
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, m_invProj.un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -191,7 +313,7 @@ namespace bgfx
 
 				case PredefinedUniform::ViewProj:
 					{
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, m_viewProj[_view].un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -209,7 +331,7 @@ namespace bgfx
 								);
 						}
 
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, m_invViewProj.un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -220,7 +342,7 @@ namespace bgfx
 				case PredefinedUniform::Model:
 					{
 						const Matrix4& model = frameCache.m_matrixCache.m_cache[_draw.m_startMatrix];
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, model.un.val
 							, bx::uint32_min(_draw.m_numMatrices*mtxRegs, predefined.m_count)
@@ -236,7 +358,7 @@ namespace bgfx
 							, &model.un.f4x4
 							, &m_view[_view].un.f4x4
 							);
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, modelView.un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -252,7 +374,7 @@ namespace bgfx
 							, &model.un.f4x4
 							, &m_viewProj[_view].un.f4x4
 							);
-						_renderer->setShaderUniform4x4f(flags
+						_destBuffer.setShaderUniform4x4f(flags
 							, predefined.m_loc
 							, modelViewProj.un.val
 							, bx::uint32_min(mtxRegs, predefined.m_count)
@@ -262,7 +384,7 @@ namespace bgfx
 
 				case PredefinedUniform::AlphaRef:
 					{
-						_renderer->setShaderUniform4f(flags
+						_destBuffer.setShaderUniform4f(flags
 							, predefined.m_loc
 							, &m_alphaRef
 							, 1

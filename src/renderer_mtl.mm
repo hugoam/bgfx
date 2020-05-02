@@ -378,7 +378,6 @@ namespace bgfx { namespace mtl
 			BX_TRACE("Init.");
 
 			m_fbh.idx = kInvalidHandle;
-			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
 			bx::memSet(&m_resolution, 0, sizeof(m_resolution) );
 
 			m_device = (id<MTLDevice>)g_platformData.context;
@@ -963,22 +962,13 @@ namespace bgfx { namespace mtl
 
 		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name) override
 		{
-			if (NULL != m_uniforms[_handle.idx])
-			{
-				BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			}
-
-			const uint32_t size = bx::alignUp(g_uniformTypeSize[_type]*_num, 16);
-			void* data = BX_ALLOC(g_allocator, size);
-			bx::memSet(data, 0, size);
-			m_uniforms[_handle.idx] = data;
+			m_uniforms.createUniform(_handle, _type, _num);
 			m_uniformReg.add(_handle, _name);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
 		{
-			BX_FREE(g_allocator, m_uniforms[_handle.idx]);
-			m_uniforms[_handle.idx] = NULL;
+			m_uniforms.destroyUniform(_handle);
 			m_uniformReg.remove(_handle);
 		}
 
@@ -1036,7 +1026,7 @@ namespace bgfx { namespace mtl
 
 		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size) override
 		{
-			bx::memCopy(m_uniforms[_loc], _data, _size);
+			m_uniforms.updateUniform(_loc, _data, _size);
 		}
 
 		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) override
@@ -1418,88 +1408,6 @@ namespace bgfx { namespace mtl
 		void setShaderUniform4x4f(uint8_t _flags, uint32_t _loc, const void* _val, uint32_t _numRegs)
 		{
 			setShaderUniform(_flags, _loc, _val, _numRegs);
-		}
-
-		void commit(UniformBuffer& _uniformBuffer)
-		{
-			_uniformBuffer.reset();
-
-			for (;;)
-			{
-				uint32_t opcode = _uniformBuffer.read();
-
-				if (UniformType::End == opcode)
-				{
-					break;
-				}
-
-				UniformType::Enum type;
-				uint16_t loc;
-				uint16_t num;
-				uint16_t copy;
-				UniformBuffer::decodeOpcode(opcode, type, loc, num, copy);
-
-				const char* data;
-				if (copy)
-				{
-					data = _uniformBuffer.read(g_uniformTypeSize[type]*num);
-				}
-				else
-				{
-					UniformHandle handle;
-					bx::memCopy(&handle, _uniformBuffer.read(sizeof(UniformHandle) ), sizeof(UniformHandle) );
-					data = (const char*)m_uniforms[handle.idx];
-				}
-
-#define CASE_IMPLEMENT_UNIFORM(_uniform, _dxsuffix, _type) \
-	case UniformType::_uniform:                            \
-	case UniformType::_uniform|kUniformFragmentBit:        \
-	{                                                      \
-		setShaderUniform(uint8_t(type), loc, data, num);   \
-	}                                                      \
-	break;
-
-				switch ( (uint32_t)type)
-				{
-				case UniformType::Mat3:
-				case UniformType::Mat3|kUniformFragmentBit:
-					{
-						float* value = (float*)data;
-						for (uint32_t ii = 0, count = num/3; ii < count; ++ii,  loc += 3*16, value += 9)
-						{
-							Matrix4 mtx;
-							mtx.un.val[ 0] = value[0];
-							mtx.un.val[ 1] = value[1];
-							mtx.un.val[ 2] = value[2];
-							mtx.un.val[ 3] = 0.0f;
-							mtx.un.val[ 4] = value[3];
-							mtx.un.val[ 5] = value[4];
-							mtx.un.val[ 6] = value[5];
-							mtx.un.val[ 7] = 0.0f;
-							mtx.un.val[ 8] = value[6];
-							mtx.un.val[ 9] = value[7];
-							mtx.un.val[10] = value[8];
-							mtx.un.val[11] = 0.0f;
-							setShaderUniform(uint8_t(type), loc, &mtx.un.val[0], 3);
-						}
-					}
-					break;
-
-					CASE_IMPLEMENT_UNIFORM(Sampler, I, int);
-					CASE_IMPLEMENT_UNIFORM(Vec4,    F, float);
-					CASE_IMPLEMENT_UNIFORM(Mat4,    F, float);
-
-				case UniformType::End:
-					break;
-
-				default:
-					BX_TRACE("%4d: INVALID 0x%08x, t %d, l %d, n %d, c %d", _uniformBuffer.getPos(), opcode, type, loc, num, copy);
-					break;
-				}
-
-#undef CASE_IMPLEMENT_UNIFORM
-
-			}
 		}
 
 		void clearQuad(ClearQuad& _clearQuad, const Rect& /*_rect*/, const Clear& _clear, const float _palette[][4])
