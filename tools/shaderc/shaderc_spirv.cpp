@@ -596,6 +596,25 @@ namespace bgfx { namespace spirv
 		"BgfxSampler2DMS",
 	};
 
+	static const char* s_pushConstantName[] =
+	{
+		"u_model",
+		"u_modelViewProj",
+	};
+
+	bool isPushConstant(const bx::StringView& _name)
+	{
+		for (uint8_t ii = 0; ii < BX_COUNTOF(s_pushConstantName); ++ii)
+		{
+			if (0 == bx::strCmp(s_pushConstantName[ii], _name))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	static uint16_t writeUniformArray(bx::WriterI* _writer, const UniformArray& uniforms, bool isFragmentShader)
 	{
 		uint16_t size = 0;
@@ -811,18 +830,31 @@ namespace bgfx { namespace spirv
 						}
 					}
 
+					std::string pushConstantBlock;
 					std::string uniformBlock;
+
+					pushConstantBlock += "layout(push_constant)\n";
+					pushConstantBlock += "cbuffer PushConstantBlock\n";
+					pushConstantBlock += "{\n";
+
 					uniformBlock += "cbuffer UniformBlock\n";
 					uniformBlock += "{\n";
 					for (const Uniform& uniform : uniforms)
 					{
-						uniformBlock += uniform.decl.substr(7 /* uniform */);
+						if (isPushConstant(uniform.name.c_str()))
+							pushConstantBlock += uniform.decl.substr(7 /* uniform */);
+						else
+							uniformBlock += uniform.decl.substr(7 /* uniform */);
 					}
+
+
+					pushConstantBlock += "};\n";
 					uniformBlock += "};\n";
 
-					output = uniformBlock + output;
+					output = pushConstantBlock + uniformBlock + output;
 
-					//std::cout << "[debug] uniforms: " << std::endl << uniformBlock << std::endl;
+					std::cout << "[debug] uniforms: " << std::endl << uniformBlock << std::endl;
+					std::cout << "[debug] pushconstants: " << std::endl << pushConstantBlock << std::endl;
 
 					// recompile with the unused uniforms converted to statics
 					return compile(_options, _version, output.c_str(), _writer, false);
@@ -870,6 +902,11 @@ namespace bgfx { namespace spirv
 						default:
 							un.type = UniformType::End;
 							break;
+						}
+
+						if (isPushConstant(un.name.c_str()))
+						{
+							un.type = UniformType::Enum(BGFX_UNIFORM_PUSHCONSTANTBIT | un.type);
 						}
 
 						uniforms.push_back(un);

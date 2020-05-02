@@ -161,6 +161,7 @@
 			VK_IMPORT_DEVICE_FUNC(false, vkCmdSetStencilReference);        \
 			VK_IMPORT_DEVICE_FUNC(false, vkCmdSetBlendConstants);          \
 			VK_IMPORT_DEVICE_FUNC(false, vkCmdSetScissor);                 \
+			VK_IMPORT_DEVICE_FUNC(false, vkCmdPushConstants);              \
 			VK_IMPORT_DEVICE_FUNC(false, vkCmdBindDescriptorSets);         \
 			VK_IMPORT_DEVICE_FUNC(false, vkCmdBindIndexBuffer);            \
 			VK_IMPORT_DEVICE_FUNC(false, vkCmdBindVertexBuffers);          \
@@ -446,6 +447,7 @@ VK_DESTROY
 			, m_constantBuffer(NULL)
 			, m_hash(0)
 			, m_numUniforms(0)
+			, m_numPushConstants(0)
 			, m_numPredefined(0)
 			, m_uniformBinding(0)
 			, m_numBindings(0)
@@ -466,6 +468,7 @@ VK_DESTROY
 		uint32_t m_hash;
 		uint16_t m_numUniforms;
 		uint16_t m_size;
+		uint8_t m_numPushConstants;
 		uint8_t m_numPredefined;
 		uint8_t m_numAttrs;
 
@@ -494,6 +497,7 @@ VK_DESTROY
 		BindInfo m_bindInfo[BGFX_CONFIG_MAX_TEXTURE_SAMPLERS];
 
 		PredefinedUniform m_predefined[PredefinedUniform::Count * 2];
+		uint8_t m_numPushConstants;
 		uint8_t m_numPredefined;
 
 		uint32_t m_descriptorSetLayoutHash;

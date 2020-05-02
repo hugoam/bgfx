@@ -100,8 +100,8 @@ namespace bgfx
 			for (uint32_t ii = 0, num = _program.m_numPredefined; ii < num; ++ii)
 			{
 				const PredefinedUniform& predefined = _program.m_predefined[ii];
-				uint8_t flags = predefined.m_type&BGFX_UNIFORM_FRAGMENTBIT;
-				switch (predefined.m_type&(~BGFX_UNIFORM_FRAGMENTBIT) )
+				uint8_t flags = predefined.m_type&(BGFX_UNIFORM_FRAGMENTBIT|BGFX_UNIFORM_PUSHCONSTANTBIT);
+				switch (predefined.m_type&(~BGFX_UNIFORM_MASK) )
 				{
 				case PredefinedUniform::ViewRect:
 					{
@@ -271,7 +271,7 @@ namespace bgfx
 					break;
 
 				default:
-					BX_CHECK(false, "predefined %d not handled", predefined.m_type);
+					BX_CHECK(false, "predefined %d not handled", predefined.m_type&(~BGFX_UNIFORM_MASK));
 					break;
 				}
 			}

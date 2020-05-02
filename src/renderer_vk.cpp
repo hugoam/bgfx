@@ -2911,7 +2911,11 @@ VK_IMPORT_DEVICE
 
 		void setShaderUniform(uint8_t _flags, uint32_t _regIndex, const void* _val, uint32_t _numRegs)
 		{
-			if (_flags & BGFX_UNIFORM_FRAGMENTBIT)
+			if (_flags & BGFX_UNIFORM_PUSHCONSTANTBIT)
+			{
+				bx::memCopy(&m_pushConstants[_regIndex], _val, _numRegs*16);
+			}
+			else if (_flags & BGFX_UNIFORM_FRAGMENTBIT)
 			{
 				bx::memCopy(&m_fsScratch[_regIndex], _val, _numRegs*16);
 			}
@@ -3682,6 +3686,9 @@ VK_IMPORT_DEVICE
 
 		void allocDescriptorSet(const ProgramVK& program, const RenderBind& renderBind, ScratchBufferVK& scratchBuffer)
 		{
+			if (0 == program.m_descriptorSetLayoutHash)
+				return;
+
 			VkDescriptorSetLayout dsl = m_descriptorSetLayoutCache.find(program.m_descriptorSetLayoutHash);
 			VkDescriptorSetAllocateInfo dsai;
 			dsai.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -4241,6 +4248,7 @@ VK_IMPORT_DEVICE
 
 		TextVideoMem m_textVideoMem;
 
+		uint8_t m_pushConstants[256];
 		uint8_t m_fsScratch[64<<10];
 		uint8_t m_vsScratch[64<<10];
 
@@ -4718,14 +4726,32 @@ VK_DESTROY
 
 				const char* kind = "invalid";
 
+				bool pushconstant = (BGFX_UNIFORM_PUSHCONSTANTBIT & type) != 0;
+
+				if (type > UniformType::End && !pushconstant)
+					size = bx::max(size, (uint16_t)(regIndex + regCount * 16));
+
 				PredefinedUniform::Enum predefined = nameToPredefinedUniformEnum(name);
 				if (PredefinedUniform::Count != predefined)
 				{
-					kind = "predefined";
-					m_predefined[m_numPredefined].m_loc   = regIndex;
+					m_predefined[m_numPredefined].m_loc = regIndex;
 					m_predefined[m_numPredefined].m_count = regCount;
-					m_predefined[m_numPredefined].m_type  = uint8_t(predefined|fragmentBit);
-					m_numPredefined++;
+
+					if (pushconstant)
+					{
+						m_predefined[m_numPredefined].m_type = uint8_t(predefined | fragmentBit | BGFX_UNIFORM_PUSHCONSTANTBIT);
+						m_numPredefined++;
+						m_numPushConstants++;
+
+						kind = "predefined (pushconstant)";
+					}
+					else
+					{
+						m_predefined[m_numPredefined].m_type = uint8_t(predefined | fragmentBit);
+						m_numPredefined++;
+
+						kind = "predefined";
+					}
 				}
 				else if (UniformType::End == (~BGFX_UNIFORM_MASK & type))
 				{
@@ -4941,6 +4967,7 @@ VK_DESTROY
 			, _vsh->m_predefined
 			, _vsh->m_numPredefined * sizeof(PredefinedUniform)
 			);
+		m_numPushConstants = _vsh->m_numPushConstants;
 		m_numPredefined = _vsh->m_numPredefined;
 
 		if (NULL != _fsh)
@@ -4952,6 +4979,7 @@ VK_DESTROY
 				, _fsh->m_predefined
 				, _fsh->m_numPredefined * sizeof(PredefinedUniform)
 				);
+			m_numPushConstants += _fsh->m_numPushConstants;
 			m_numPredefined += _fsh->m_numPredefined;
 		}
 
@@ -5020,12 +5048,25 @@ VK_DESTROY
 			}
 		}
 
+		VkPushConstantRange pcr;
+		pcr.stageFlags = VK_SHADER_STAGE_ALL;
+		pcr.offset = 0;
+		pcr.size = m_numPushConstants * 64;
+
 		VkPipelineLayoutCreateInfo plci;
 		plci.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		plci.pNext = NULL;
 		plci.flags = 0;
-		plci.pushConstantRangeCount = 0;
-		plci.pPushConstantRanges = NULL;
+		if (m_numPushConstants > 0)
+		{
+			plci.pushConstantRangeCount = 1;
+			plci.pPushConstantRanges = &pcr;
+		}
+		else
+		{
+			plci.pushConstantRangeCount = 0;
+			plci.pPushConstantRanges = NULL;
+		}
 		plci.setLayoutCount = (dsl == VK_NULL_HANDLE ? 0 : 1);
 		plci.pSetLayouts = &dsl;
 
@@ -5770,6 +5811,7 @@ VK_DESTROY
 		ProgramHandle currentProgram    = BGFX_INVALID_HANDLE;
 		uint32_t currentBindHash        = 0;
 		uint32_t currentDslHash         = 0;
+		bool     hasPushConstants       = false;
 		bool     hasPredefined          = false;
 		bool     commandListChanged     = false;
 		VkPipeline currentPipeline = VK_NULL_HANDLE;
@@ -6306,12 +6348,13 @@ VK_DESTROY
 						}
 
 						hasPredefined = 0 < program.m_numPredefined;
+						hasPushConstants = 0 < program.m_numPushConstants;
 						constantsChanged = true;
 					}
 
 					const ProgramVK& program = m_program[currentProgram.idx];
 
-					if (hasPredefined)
+					if (hasPredefined || hasPushConstants)
 					{
 						uint32_t ref = (newFlags & BGFX_STATE_ALPHA_REF_MASK) >> BGFX_STATE_ALPHA_REF_SHIFT;
 						viewState.m_alphaRef = ref / 255.0f;
@@ -6353,16 +6396,33 @@ VK_DESTROY
 						scratchBuffer.m_pos += total;
 					}
 
-					vkCmdBindDescriptorSets(
-						m_commandBuffer
-						, VK_PIPELINE_BIND_POINT_GRAPHICS
-						, program.m_pipelineLayout
-						, 0
-						, 1
-						, &scratchBuffer.getCurrentDS()
-						, numOffset
-						, offsets
-						);
+					//BX_TRACE("Bind %s", getName(program.m_vsh->m_handle));
+
+					if (hasPushConstants)
+					{
+						vkCmdPushConstants(
+							m_commandBuffer
+							, program.m_pipelineLayout
+							, VK_SHADER_STAGE_ALL
+							, 0
+							, program.m_numPushConstants * 64
+							, m_pushConstants
+							);
+					}
+
+					if (0 != program.m_descriptorSetLayoutHash)
+					{
+						vkCmdBindDescriptorSets(
+							m_commandBuffer
+							, VK_PIPELINE_BIND_POINT_GRAPHICS
+							, program.m_pipelineLayout
+							, 0
+							, 1
+							, &scratchBuffer.getCurrentDS()
+							, numOffset
+							, offsets
+							);
+					}
 
 //					if (constantsChanged
 //					||  hasPredefined)
