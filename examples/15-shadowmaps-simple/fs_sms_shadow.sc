@@ -7,5 +7,6 @@
 
 void main()
 {
-	gl_FragColor = vec4_splat(0.0);
+	// I do not know if this is needed for some backends, but if you add it back please do so under a define #ifndef BGFX_SHADER_LANGUAGE_SPIRV
+	//gl_FragColor = vec4_splat(0.0);
 }

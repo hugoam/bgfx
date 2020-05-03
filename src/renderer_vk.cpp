@@ -2705,9 +2705,6 @@ VK_IMPORT_DEVICE
 			wds[2].pBufferInfo = NULL;
 			wds[2].pTexelBufferView = NULL;
 
-			m_vsChanges = 0;
-			m_fsChanges = 0;
-
 			vkUpdateDescriptorSets(m_device, 3, wds, 0, NULL);
 			vkCmdBindDescriptorSets(
 				m_commandBuffer
@@ -2914,16 +2911,13 @@ VK_IMPORT_DEVICE
 
 		void setShaderUniform(uint8_t _flags, uint32_t _regIndex, const void* _val, uint32_t _numRegs)
 		{
-			BX_UNUSED(_flags, _regIndex, _val, _numRegs);
-			if (_flags&BGFX_UNIFORM_FRAGMENTBIT)
+			if (_flags & BGFX_UNIFORM_FRAGMENTBIT)
 			{
 				bx::memCopy(&m_fsScratch[_regIndex], _val, _numRegs*16);
-				m_fsChanges += _numRegs;
 			}
 			else
 			{
 				bx::memCopy(&m_vsScratch[_regIndex], _val, _numRegs*16);
-				m_vsChanges += _numRegs;
 			}
 		}
 
@@ -2971,9 +2965,6 @@ VK_IMPORT_DEVICE
 //					, NULL
 //					);
 //			}
-//
-//			m_vsChanges = 0;
-//			m_fsChanges = 0;
 //		}
 
 		void setFrameBuffer(FrameBufferHandle _fbh, bool _msaa = true)
@@ -3505,7 +3496,10 @@ VK_IMPORT_DEVICE
 			murmur.add(_stencil);
 			murmur.add(program.m_vsh->m_hash);
 			murmur.add(program.m_vsh->m_attrMask, sizeof(program.m_vsh->m_attrMask) );
-			murmur.add(program.m_fsh->m_hash);
+			if (NULL != program.m_fsh)
+			{
+				murmur.add(program.m_fsh->m_hash);
+			}
 			for (uint8_t ii = 0; ii < _numStreams; ++ii)
 			{
 				murmur.add(_layouts[ii]->m_hash);
@@ -3571,13 +3565,17 @@ VK_IMPORT_DEVICE
 			shaderStages[0].module = program.m_vsh->m_module;
 			shaderStages[0].pName  = "main";
 			shaderStages[0].pSpecializationInfo = NULL;
-			shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-			shaderStages[1].pNext = NULL;
-			shaderStages[1].flags = 0;
-			shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-			shaderStages[1].module = program.m_fsh->m_module;
-			shaderStages[1].pName  = "main";
-			shaderStages[1].pSpecializationInfo = NULL;
+
+			if (NULL != program.m_fsh)
+			{
+				shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+				shaderStages[1].pNext = NULL;
+				shaderStages[1].flags = 0;
+				shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+				shaderStages[1].module = program.m_fsh->m_module;
+				shaderStages[1].pName  = "main";
+				shaderStages[1].pSpecializationInfo = NULL;
+			}
 
 			VkPipelineViewportStateCreateInfo viewportState;
 			viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -3603,7 +3601,7 @@ VK_IMPORT_DEVICE
 			graphicsPipeline.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 			graphicsPipeline.pNext = NULL;
 			graphicsPipeline.flags = 0;
-			graphicsPipeline.stageCount = BX_COUNTOF(shaderStages);
+			graphicsPipeline.stageCount = NULL == program.m_fsh ? 1 : 2;
 			graphicsPipeline.pStages    = shaderStages;
 			graphicsPipeline.pVertexInputState   = &vertexInputState;
 			graphicsPipeline.pInputAssemblyState = &inputAssemblyState;
@@ -3836,7 +3834,7 @@ VK_IMPORT_DEVICE
 			if (0 < total)
 			{
 				uint32_t vsUniformBinding = program.m_vsh->m_uniformBinding;
-				uint32_t fsUniformBinding = program.m_fsh ? program.m_fsh->m_uniformBinding : 0;
+				uint32_t fsUniformBinding = NULL != program.m_fsh ? program.m_fsh->m_uniformBinding : 0;
 
 				if (vsize > 0)
 				{
@@ -3981,7 +3979,7 @@ VK_IMPORT_DEVICE
 			if (isValid(fbh) )
 			{
 				const FrameBufferVK& fb = m_frameBuffers[fbh.idx];
-				numMrt = bx::max((uint8_t)1, fb.m_num);
+				numMrt = fb.m_num;
 			}
 
 			VkClearAttachment attachments[BGFX_CONFIG_MAX_FRAME_BUFFERS];
@@ -4206,8 +4204,6 @@ VK_IMPORT_DEVICE
 		VkFence  m_fence;
 		VkRenderPass m_renderPass;
 		VkDescriptorPool m_descriptorPool;
-//		VkDescriptorSetLayout m_descriptorSetLayout;
-//		VkPipelineLayout m_pipelineLayout;
 		VkPipelineCache m_pipelineCache;
 		VkCommandPool m_commandPool;
 
@@ -4239,8 +4235,6 @@ VK_IMPORT_DEVICE
 
 		uint8_t m_fsScratch[64<<10];
 		uint8_t m_vsScratch[64<<10];
-		uint32_t m_fsChanges;
-		uint32_t m_vsChanges;
 
 		uint32_t m_backBufferColorIdx;
 		FrameBufferHandle m_fbh;
@@ -6012,9 +6006,6 @@ VK_DESTROY
 
 						offset = scratchBuffer.m_pos;
 
-						m_vsChanges = 0;
-						m_fsChanges = 0;
-
 						bx::memCopy(&scratchBuffer.m_data[scratchBuffer.m_pos], m_vsScratch, program.m_vsh->m_size);
 
 						scratchBuffer.m_pos += vsize;
@@ -6321,8 +6312,6 @@ VK_DESTROY
 							bx::memCopy(&scratchBuffer.m_data[scratchBuffer.m_pos + vsize], m_fsScratch, program.m_fsh->m_size);
 						}
 
-						m_vsChanges = 0;
-						m_fsChanges = 0;
 						scratchBuffer.m_pos += total;
 					}
 
