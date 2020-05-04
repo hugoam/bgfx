@@ -136,7 +136,7 @@ solution "bgfx"
 			"x32",
 			"x64",
 --			"Xbox360",
-			"Native", -- for targets where bitness is not specified
+			--"Native", -- for targets where bitness is not specified
 		}
 	end
 
@@ -350,6 +350,7 @@ function exampleProjectDefaults()
 		path.join(BGFX_DIR, "include"),
 		path.join(BGFX_DIR, "3rdparty"),
 		path.join(BGFX_DIR, "examples/common"),
+		path.join(BGFX_DIR, "src"),
 	}
 
 	flags {
@@ -495,11 +496,12 @@ function exampleProjectDefaults()
 		kind "ConsoleApp"
 
 		linkoptions {
-			"-s TOTAL_MEMORY=32MB",
+			"-s TOTAL_MEMORY=256MB",
 			"-s ALLOW_MEMORY_GROWTH=1",
-			"--preload-file ../../../examples/runtime@/"
+			--"--preload-file " .. path.join(BGFX_DIR, "examples/runtime") .. "@/",
 		}
 
+	configuration { "wasm*", "Release" }
 		removeflags {
 			"OptimizeSpeed",
 		}
@@ -508,6 +510,11 @@ function exampleProjectDefaults()
 			"Optimize"
 		}
 
+	configuration { "wasm*", "Debug" }
+		linkoptions {
+			"-g3",
+		}
+		
 	configuration { "linux-* or freebsd" }
 		links {
 			"X11",
@@ -682,6 +689,7 @@ or _OPTIONS["with-combined-examples"] then
 		, "14-shadowvolumes"
 		, "15-shadowmaps-simple"
 		, "16-shadowmaps"
+		--, "17-drawstress"
 		, "18-ibl"
 		, "19-oit"
 		, "20-nanovg"
@@ -713,8 +721,309 @@ or _OPTIONS["with-combined-examples"] then
 
 	-- 17-drawstress requires multithreading, does not compile for singlethreaded wasm
 --	if platform is not single-threaded then
-		exampleProject(false, "17-drawstress")
+--		exampleProject(false, "17-drawstress")
 --	end
+
+	function addWebAssetsCommon(name, prefix, shaders)
+		project(name)
+			configuration { "wasm*" }
+
+				for _, shader in ipairs(shaders or {}) do
+					local asset = "shaders/spirv/" .. shader .. ".bin"
+					linkoptions {
+						"--preload-file " .. path.join(BGFX_DIR, "examples/common/" .. asset) .. "@/" .. asset,
+					}
+				end
+
+			configuration {}
+	end
+
+	function addWebAssets(name, shaders, models, textures, assets)
+		project(name)
+			configuration { "wasm*" }
+
+				for _, shader in ipairs(shaders or {}) do
+					local asset = "shaders/spirv/" .. shader .. ".bin"
+					linkoptions {
+						"--preload-file " .. path.join(BGFX_DIR, "examples/runtime/" .. asset) .. "@/" .. asset,
+					}
+				end
+
+				for _, model in ipairs(models or {}) do
+					local asset = "meshes/" .. model .. ".bin"
+					linkoptions {
+						"--preload-file " .. path.join(BGFX_DIR, "examples/runtime/" .. asset) .. "@/" .. asset,
+					}
+				end
+
+				for _, texture in ipairs(textures or {}) do
+					local asset = "textures/" .. texture
+					linkoptions {
+						"--preload-file " .. path.join(BGFX_DIR, "examples/runtime/" .. asset) .. "@/" .. asset,
+					}
+				end
+
+				for _, asset in ipairs(assets or {}) do
+					linkoptions {
+						"--preload-file " .. path.join(BGFX_DIR, "examples/runtime/" .. asset) .. "@/" .. asset,
+					}
+				end
+
+			configuration {}
+	end
+
+	addWebAssets("example-01-cubes", { "vs_cubes", "fs_cubes" })
+	addWebAssets("example-03-raymarch", { "vs_raymarching", "fs_raymarching" })
+	addWebAssets("example-04-mesh", { "vs_mesh", "fs_mesh" }, { "bunny" })
+	addWebAssets("example-05-instancing", { "vs_instancing", "fs_instancing" })
+	addWebAssets("example-06-bump", { "vs_bump", "vs_bump_instanced", "fs_bump" }, {}, { "fieldstone-rgba.dds", "fieldstone-n.dds" })
+
+	addWebAssets("example-09-hdr", { "vs_hdr_skybox", "fs_hdr_skybox", "vs_hdr_lum", "fs_hdr_lum", "vs_hdr_lumavg", "fs_hdr_lumavg", "vs_hdr_blur",
+									 "fs_hdr_blur", "vs_hdr_bright", "fs_hdr_bright", "vs_hdr_mesh", "fs_hdr_mesh", "vs_hdr_tonemap", "fs_hdr_tonemap" },
+								   { "bunny" }, { "uffizi.ktx" })
+
+	addWebAssets("example-12-lod",
+		{ "vs_tree", "fs_tree" },
+		{
+			"tree1b_lod0_1",
+			"tree1b_lod1_1",
+			"tree1b_lod2_1",
+			"tree1b_lod0_2",
+			"tree1b_lod1_2",
+			"tree1b_lod2_2"
+		},
+		{ "leafs1.dds", "bark1.dds" });
+
+	addWebAssets("example-13-stencil", { "vs_stencil_texture_lighting", "fs_stencil_texture_lighting", "vs_stencil_color_lighting", "fs_stencil_color_lighting",
+										 "vs_stencil_color_texture", "fs_stencil_color_texture", "vs_stencil_color", "fs_stencil_color_black", "vs_stencil_texture",
+										 "fs_stencil_texture" }, { "bunny", "column" }, { "figure-rgba.dds", "flare.dds", "fieldstone-rgba.dds" })
+
+	addWebAssets("example-14-shadowvolumes",
+		{
+			"vs_shadowvolume_texture_lighting", "fs_shadowvolume_texture_lighting",
+			"vs_shadowvolume_color_lighting",  "fs_shadowvolume_color_lighting",
+			"vs_shadowvolume_color_texture", "fs_shadowvolume_color_texture",
+			"vs_shadowvolume_texture", "fs_shadowvolume_texture",
+			"vs_shadowvolume_svback", "vs_shadowvolume_svside",  "vs_shadowvolume_svfront",
+			"fs_shadowvolume_svbackblank", "fs_shadowvolume_svsideblank", "fs_shadowvolume_svfrontblank",
+			"fs_shadowvolume_svbackcolor", "fs_shadowvolume_svsidecolor", "fs_shadowvolume_svfrontcolor",
+			"fs_shadowvolume_svsidetex",
+			"fs_shadowvolume_svbacktex1", "fs_shadowvolume_svbacktex2",
+			"fs_shadowvolume_svfronttex1", "fs_shadowvolume_svfronttex2"
+		},
+		{ "bunny_patched", "bunny_decimated", "column", "platform", "cube" },
+		{ "figure-rgba.dds", "flare.dds", "fieldstone-rgba.dds" })
+
+	project "example-14-shadowvolumes"
+		configuration { "wasm*" }
+			removelinkoptions { "-s TOTAL_MEMORY=256MB" }
+			linkoptions       { "-s TOTAL_MEMORY=512MB" }
+		configuration {}
+
+	addWebAssets("example-15-shadowmaps-simple", { "vs_sms_shadow_pd", "fs_sms_shadow_pd", "vs_sms_mesh", "fs_sms_mesh_pd", "vs_sms_shadow", "fs_sms_shadow", "vs_sms_mesh", "fs_sms_mesh" },
+												 { "bunny", "cube", "hollowcube" })
+
+	addWebAssets("example-16-shadowmaps",
+		{
+			"vs_shadowmaps_color",         "fs_shadowmaps_color_black",
+			"vs_shadowmaps_texture",       "fs_shadowmaps_texture",
+			"vs_shadowmaps_color_texture", "fs_shadowmaps_color_texture",
+
+			"vs_shadowmaps_vblur", "fs_shadowmaps_vblur",
+			"vs_shadowmaps_hblur", "fs_shadowmaps_hblur",
+			"vs_shadowmaps_vblur", "fs_shadowmaps_vblur_vsm",
+			"vs_shadowmaps_hblur", "fs_shadowmaps_hblur_vsm",
+
+			"vs_shadowmaps_unpackdepth", "fs_shadowmaps_unpackdepth",
+			"vs_shadowmaps_unpackdepth", "fs_shadowmaps_unpackdepth_vsm",
+
+			"vs_shadowmaps_packdepth", "fs_shadowmaps_packdepth",
+			"vs_shadowmaps_packdepth", "fs_shadowmaps_packdepth_vsm",
+
+			"vs_shadowmaps_packdepth_linear", "fs_shadowmaps_packdepth_linear",
+			"vs_shadowmaps_packdepth_linear", "fs_shadowmaps_packdepth_vsm_linear",
+
+			"vs_shadowmaps_color_lighting", "fs_shadowmaps_color_lighting_hard",
+			"vs_shadowmaps_color_lighting", "fs_shadowmaps_color_lighting_pcf",
+			"vs_shadowmaps_color_lighting", "fs_shadowmaps_color_lighting_vsm",
+			"vs_shadowmaps_color_lighting", "fs_shadowmaps_color_lighting_esm",
+
+			"vs_shadowmaps_color_lighting_linear", "fs_shadowmaps_color_lighting_hard_linear",
+			"vs_shadowmaps_color_lighting_linear", "fs_shadowmaps_color_lighting_pcf_linear",
+			"vs_shadowmaps_color_lighting_linear", "fs_shadowmaps_color_lighting_vsm_linear",
+			"vs_shadowmaps_color_lighting_linear", "fs_shadowmaps_color_lighting_esm_linear",
+
+			"vs_shadowmaps_color_lighting_omni", "fs_shadowmaps_color_lighting_hard_omni",
+			"vs_shadowmaps_color_lighting_omni", "fs_shadowmaps_color_lighting_pcf_omni",
+			"vs_shadowmaps_color_lighting_omni", "fs_shadowmaps_color_lighting_vsm_omni",
+			"vs_shadowmaps_color_lighting_omni", "fs_shadowmaps_color_lighting_esm_omni",
+
+			"vs_shadowmaps_color_lighting_linear_omni", "fs_shadowmaps_color_lighting_hard_linear_omni",
+			"vs_shadowmaps_color_lighting_linear_omni", "fs_shadowmaps_color_lighting_pcf_linear_omni",
+			"vs_shadowmaps_color_lighting_linear_omni", "fs_shadowmaps_color_lighting_vsm_linear_omni",
+			"vs_shadowmaps_color_lighting_linear_omni", "fs_shadowmaps_color_lighting_esm_linear_omni",
+
+			"vs_shadowmaps_color_lighting_csm", "fs_shadowmaps_color_lighting_hard_csm",
+			"vs_shadowmaps_color_lighting_csm", "fs_shadowmaps_color_lighting_pcf_csm",
+			"vs_shadowmaps_color_lighting_csm", "fs_shadowmaps_color_lighting_vsm_csm",
+			"vs_shadowmaps_color_lighting_csm", "fs_shadowmaps_color_lighting_esm_csm",
+
+			"vs_shadowmaps_color_lighting_linear_csm", "fs_shadowmaps_color_lighting_hard_linear_csm",
+			"vs_shadowmaps_color_lighting_linear_csm", "fs_shadowmaps_color_lighting_pcf_linear_csm",
+			"vs_shadowmaps_color_lighting_linear_csm", "fs_shadowmaps_color_lighting_vsm_linear_csm",
+			"vs_shadowmaps_color_lighting_linear_csm", "fs_shadowmaps_color_lighting_esm_linear_csm",
+		},
+		{ "bunny", "tree", "cube", "hollowcube" },
+		{ "figure-rgba.dds", "flare.dds", "fieldstone-rgba.dds" })
+
+	addWebAssets("example-18-ibl",
+		{
+			"vs_ibl_mesh",   "fs_ibl_mesh",
+			"vs_ibl_skybox", "fs_ibl_skybox",
+		},
+		{ "bunny", "orb" },
+		{ "bolonga_lod.dds", "bolonga_irr.dds", "kyoto_lod.dds", "kyoto_irr.dds" })
+
+	addWebAssets("example-19-oit",
+		{
+			"vs_oit",      "fs_oit",
+			"vs_oit",      "fs_oit_wb_separate",
+			"vs_oit_blit", "fs_oit_wb_separate_blit",
+			"vs_oit",      "fs_oit_wb",
+			"vs_oit_blit", "fs_oit_wb_blit"
+		})
+
+	addWebAssets("example-20-nanovg",
+		{},
+		{},
+		{},
+		{
+			"images/image1.jpg",
+			"images/image2.jpg",
+			"images/image3.jpg",
+			"images/image4.jpg",
+			"images/image5.jpg",
+			"images/image6.jpg",
+			"images/image7.jpg",
+			"images/image8.jpg",
+			"images/image9.jpg",
+			"images/image10.jpg",
+			"images/image11.jpg",
+			"images/image12.jpg",
+			"images/blender_icons16.png",
+			"font/entypo.ttf",
+			"font/roboto-regular.ttf",
+			"font/roboto-bold.ttf",
+			"font/NotoEmoji-Regular.ttf",
+		})
+
+	addWebAssets("example-21-deferred",
+		{
+			"vs_deferred_geom",
+			"vs_deferred_light",
+			"vs_deferred_geom",       "fs_deferred_geom",
+			"vs_deferred_light",      "fs_deferred_light",
+			"vs_deferred_combine",    "fs_deferred_combine",
+			"vs_deferred_debug",      "fs_deferred_debug",
+			"vs_deferred_debug_line", "fs_deferred_debug_line",
+			"vs_deferred_light",      "fs_deferred_light_ta",
+			"vs_deferred_light",      "fs_deferred_light_uav",
+			"vs_deferred_light",      "fs_deferred_clear_uav",
+		},
+		{},
+		{
+			"fieldstone-rgba.dds",
+			"fieldstone-n.dds",
+		})
+
+	addWebAssets("example-23-vectordisplay",
+		{
+			"vs_vectordisplay_fb", "fs_vectordisplay_fb",
+			"vs_vectordisplay_fb", "fs_vectordisplay_blur",
+			"vs_vectordisplay_fb", "fs_vectordisplay_blit"
+		});
+
+	addWebAssets("example-24-nbody",
+		{
+			"vs_particle", "fs_particle",
+			"cs_init_instances", "cs_update_instances", "cs_indirect"
+		})
+
+	addWebAssets("example-27-terrain",
+		{
+			"vs_terrain",                "fs_terrain",
+			"vs_terrain_height_texture", "fs_terrain"
+		})
+
+	addWebAssets("example-28-wireframe",
+		{
+			"vs_wf_wireframe", "fs_wf_wireframe",
+			"vs_wf_mesh",      "fs_wf_mesh"
+		},
+		{
+			"bunny",
+			"hollowcube",
+			"orb",
+		})
+
+	addWebAssets("example-29-debugdraw",
+		{})
+
+	addWebAssets("example-30-picking",
+		{
+			"vs_picking_shaded", "fs_picking_shaded",
+			"vs_picking_shaded", "fs_picking_id",
+		},
+		{
+			"orb",
+			"column",
+			"bunny",
+			"cube",
+			"tree",
+			"hollowcube",
+		})
+
+	addWebAssets("example-32-particles",
+		{},
+		{},
+		{ "particle.ktx" })
+
+	addWebAssets("example-35-dynamic",
+		{
+			"vs_cubes", "fs_cubes"
+		})
+
+	addWebAssets("example-36-sky",
+		{
+			"vs_sky", "fs_sky",
+			"vs_sky", "fs_sky_color_banding_fix",
+			"vs_sky_landscape", "fs_sky_landscape"
+		},
+		{
+			"test_scene"
+		},
+		{
+			"lightmap.ktx"
+		})
+
+	addWebAssets("example-38-bloom",
+		{
+			"vs_albedo_output", "fs_albedo_output",
+			"vs_fullscreen",    "fs_downsample",
+			"vs_fullscreen",    "fs_upsample",
+			"vs_fullscreen",    "fs_bloom_combine"
+		})
+
+	addWebAssets("example-40-svt",
+		{
+			"vs_vt_generic", "fs_vt_unlit",
+			"vs_vt_generic", "fs_vt_mip",
+		},
+		{},
+		{},
+		{
+			"textures/8k_mars.jpg"
+		})
 
 	-- C99 source doesn't compile under WinRT settings
 	if not premake.vstudio.iswinrt() then
