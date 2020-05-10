@@ -196,13 +196,14 @@ function bgfxProjectBase(_kind, _defines)
 
 		configuration { "not wasm*" }
 			includedirs {
-				path.join(DAWN_DIR, "src"),
 				path.join(DAWN_DIR, "src/include"),
 				path.join(DAWN_DIR, "third_party/vulkan-headers/include"),
-				path.join(DAWN_DIR, generator, "gen/src"),
 				path.join(DAWN_DIR, generator, "gen/src/include"),
 			}
 
+			files {
+				path.join(DAWN_DIR, generator, "gen/src/dawn/webgpu_cpp.cpp"),
+			}
 		configuration { "vs*" }
 			defines {
 				"NTDDI_VERSION=NTDDI_WIN10_RS2",
@@ -301,19 +302,13 @@ if _OPTIONS["with-webgpu"] then
 			local generator = "out/VS2019"
 
 			includedirs {
-				path.join(DAWN_DIR, "src"),
 				path.join(DAWN_DIR, "src/include"),
-				path.join(DAWN_DIR, generator, "gen/src"),
 				path.join(DAWN_DIR, generator, "gen/src/include"),
 			}
 
 			libdirs {
 				path.join(DAWN_DIR, generator),
 				path.join(DAWN_DIR, generator, "lib/Debug"),
-			}
-
-			files {
-				path.join(DAWN_DIR, generator, "gen/src/dawn/webgpu_cpp.cpp"),
 			}
 
 			links {
