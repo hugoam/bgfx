@@ -6,6 +6,10 @@
 #ifndef BGFX_SHADER_H_HEADER_GUARD
 #define BGFX_SHADER_H_HEADER_GUARD
 
+#if !defined(BGFX_MULTIPLE_TRANSFORMS)
+#	define BGFX_MULTIPLE_TRANSFORMS 0
+#endif // !defined(BGFX_MULTIPLE_TRANSFORMS)
+
 #if !defined(BGFX_CONFIG_MAX_BONES)
 #	define BGFX_CONFIG_MAX_BONES 32
 #endif // !defined(BGFX_CONFIG_MAX_BONES)
@@ -648,7 +652,11 @@ uniform mat4  u_proj;
 uniform mat4  u_invProj;
 uniform mat4  u_viewProj;
 uniform mat4  u_invViewProj;
+#if BGFX_MULTIPLE_TRANSFORMS
 uniform mat4  u_model[BGFX_CONFIG_MAX_BONES];
+#else
+uniform mat4  u_model;
+#endif
 uniform mat4  u_modelView;
 uniform mat4  u_modelViewProj;
 uniform vec4  u_alphaRef4;

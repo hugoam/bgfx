@@ -28,7 +28,7 @@ void main()
 	vec4 posOffset = vec4(a_position + normal.xyz * u_shadowMapOffset, 1.0);
 	v_position = mul(u_modelView, posOffset);
 
-	vec4 wpos = vec4(mul(u_model[0], posOffset).xyz, 1.0);
+	vec4 wpos = vec4(mul(u_model, posOffset).xyz, 1.0);
 	v_texcoord1 = mul(u_shadowMapMtx0, wpos);
 	v_texcoord2 = mul(u_shadowMapMtx1, wpos);
 	v_texcoord3 = mul(u_shadowMapMtx2, wpos);

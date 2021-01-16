@@ -6,6 +6,7 @@ $output v_view, v_world
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
+#define BGFX_MULTIPLE_TRANSFORMS 1
 #include <bgfx_shader.sh>
 
 void main()

@@ -10,7 +10,7 @@ $output v_pos
 
 void main()
 {
-	vec3 wpos = mul(u_model[0], vec4(a_position, 1.0) ).xyz;
+	vec3 wpos = mul(u_model, vec4(a_position, 1.0) ).xyz;
 	gl_Position = mul(u_viewProj, vec4(wpos, 1.0) );
 	v_pos = gl_Position;
 	vec4 temp =  mul(u_view, vec4(wpos, 1.0) );

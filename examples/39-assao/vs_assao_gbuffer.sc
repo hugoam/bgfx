@@ -19,7 +19,7 @@ void main()
 	vec3 normalObjectSpace = a_normal.xyz*2.0+-1.0; // Normal is stored in [0,1], remap to [-1,1].
 
 	// Transform normal into world space.  
-	vec3 normalWorldSpace = mul(u_model[0], vec4(normalObjectSpace, 0.0) ).xyz;
+	vec3 normalWorldSpace = mul(u_model, vec4(normalObjectSpace, 0.0) ).xyz;
 	// Normalize to remove (uniform...) scaling, however, recompress
 	v_normal.xyz = normalize(normalWorldSpace)*0.5+0.5;
 
