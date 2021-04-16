@@ -369,6 +369,9 @@ public:
 				// Set palette color for index 1
 				bgfx::setPaletteColor(1, 1.0f, 1.0f, 1.0f, 1.0f);
 
+				// Set palette color for index 2
+				bgfx::setPaletteColor(2, 0.0f, 0.0f, 0.0f, 1.0f);
+
 				bgfx::setViewClear(0
 					, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
 					, 1.0f // Depth
@@ -381,7 +384,7 @@ public:
 					, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
 					, 1.0f // Depth
 					, 0    // Stencil
-					, 0    // Color palette 0
+					, 2    // Color palette 2
 					);
 
 				bgfx::FrameBufferHandle invalid = BGFX_INVALID_HANDLE;

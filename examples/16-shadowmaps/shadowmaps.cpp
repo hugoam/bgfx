@@ -745,7 +745,7 @@ struct ViewState
 
 struct ClearValues
 {
-	ClearValues(uint32_t _clearRgba  = 0x30303000
+	ClearValues(uint32_t _clearRgba  = 0x303030ff
 		, float    _clearDepth       = 1.0f
 		, uint8_t  _clearStencil     = 0
 		)
@@ -1152,7 +1152,7 @@ public:
 		m_width  = _width;
 		m_height = _height;
 		m_viewState = ViewState(uint16_t(m_width), uint16_t(m_height));
-		m_clearValues = ClearValues(0x00000000, 1.0f, 0);
+		m_clearValues = ClearValues(0x000000ff, 1.0f, 0);
 
 		bgfx::Init init;
 		init.type     = args.m_type;
