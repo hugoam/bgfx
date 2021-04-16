@@ -527,7 +527,7 @@ struct ViewState
 
 struct ClearValues
 {
-	ClearValues(uint32_t _clearRgba     = 0x30303000
+	ClearValues(uint32_t _clearRgba     = 0x303030ff
 		, float    _clearDepth    = 1.0f
 		, uint8_t  _clearStencil  = 0
 		)
@@ -799,7 +799,7 @@ public:
 		Args args(_argc, _argv);
 
 		m_viewState   = ViewState(_width, _height);
-		m_clearValues = ClearValues(0x30303000, 1.0f, 0);
+		m_clearValues = ClearValues(0x303030ff, 1.0f, 0);
 
 		m_debug = BGFX_DEBUG_NONE;
 		m_reset = BGFX_RESET_VSYNC;
