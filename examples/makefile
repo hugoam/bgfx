@@ -24,7 +24,7 @@ all:
 	@make -s --no-print-directory build -C 18-ibl
 	@make -s --no-print-directory build -C 19-oit
 #embedded @make -s --no-print-directory build -C 20-nanovg
-	@make -s --no-print-directory build -C 21-deferred
+#	@make -s --no-print-directory build -C 21-deferred
 	@make -s --no-print-directory build -C 23-vectordisplay
 	@make -s --no-print-directory build -C 24-nbody
 #reused @make -s --no-print-directory build -C 25-c99
@@ -37,10 +37,11 @@ all:
 #reused @make -s --no-print-directory build -C 34-mvs
 #reused @make -s --no-print-directory build -C 35-dynamic
 	@make -s --no-print-directory build -C 36-sky
-#	@make -s --no-print-directory build -C 37-gpudrivenrendering
+	@make -s --no-print-directory build -C 37-gpudrivenrendering
 	@make -s --no-print-directory build -C 38-bloom
-#	@make -s --no-print-directory build -C 39-assao
+	@make -s --no-print-directory build -C 39-assao
 	@make -s --no-print-directory build -C 40-svt
+	@make -s --no-print-directory build -C 41-tess
 	@make -s --no-print-directory build -C 42-bunnylod
 
 rebuild:
@@ -64,7 +65,7 @@ rebuild:
 	@make -s --no-print-directory rebuild -C 18-ibl
 	@make -s --no-print-directory rebuild -C 19-oit
 #embedded @make -s --no-print-directory rebuild -C 20-nanovg
-	@make -s --no-print-directory rebuild -C 21-deferred
+#	@make -s --no-print-directory rebuild -C 21-deferred
 	@make -s --no-print-directory rebuild -C 23-vectordisplay
 	@make -s --no-print-directory rebuild -C 24-nbody
 #reused @make -s --no-print-directory rebuild -C 25-c99
@@ -77,10 +78,11 @@ rebuild:
 #reused @make -s --no-print-directory rebuild -C 34-mvs
 #reused @make -s --no-print-directory rebuild -C 35-dynamic
 	@make -s --no-print-directory rebuild -C 36-sky
-#	@make -s --no-print-directory rebuild -C 37-gpudrivenrendering
+	@make -s --no-print-directory rebuild -C 37-gpudrivenrendering
 	@make -s --no-print-directory rebuild -C 38-bloom
-#	@make -s --no-print-directory rebuild -C 39-assao
+	@make -s --no-print-directory rebuild -C 39-assao
 	@make -s --no-print-directory rebuild -C 40-svt
+	@make -s --no-print-directory rebuild -C 41-tess
 	@make -s --no-print-directory rebuild -C 42-bunnylod
 	@make -s --no-print-directory rebuild -C 43-denoise
 	@make -s --no-print-directory rebuild -C 44-sss
@@ -89,7 +91,7 @@ rebuild:
 rebuild-embedded:
 	@make -s --no-print-directory rebuild -C 02-metaballs
 	@make -s --no-print-directory rebuild -C 17-drawstress
-	@make -s --no-print-directory rebuild -C common/debugdraw
+#	@make -s --no-print-directory rebuild -C common/debugdraw
 	@make -s --no-print-directory rebuild -C common/font
 	@make -s --no-print-directory rebuild -C common/imgui
 	@make -s --no-print-directory rebuild -C common/nanovg

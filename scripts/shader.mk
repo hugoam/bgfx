@@ -26,23 +26,23 @@ all:
 .PHONY: build
 build:
 ifeq ($(OS), windows)
-	@make -s --no-print-directory TARGET=0 all
-	@make -s --no-print-directory TARGET=1 all
+#	@make -s --no-print-directory TARGET=0 all
+#	@make -s --no-print-directory TARGET=1 all
 endif
-	@make -s --no-print-directory TARGET=3 all
-	@make -s --no-print-directory TARGET=4 all
-	@make -s --no-print-directory TARGET=5 all
+#	@make -s --no-print-directory TARGET=3 all
+#	@make -s --no-print-directory TARGET=4 all
+#	@make -s --no-print-directory TARGET=5 all
 	@make -s --no-print-directory TARGET=7 all
 
 .PHONY: clean
 clean:
 ifeq ($(OS), windows)
-	@make -s --no-print-directory TARGET=0 clean
-	@make -s --no-print-directory TARGET=1 clean
+#	@make -s --no-print-directory TARGET=0 clean
+#	@make -s --no-print-directory TARGET=1 clean
 endif
-	@make -s --no-print-directory TARGET=3 clean
-	@make -s --no-print-directory TARGET=4 clean
-	@make -s --no-print-directory TARGET=5 clean
+#	@make -s --no-print-directory TARGET=3 clean
+#	@make -s --no-print-directory TARGET=4 clean
+#	@make -s --no-print-directory TARGET=5 clean
 	@make -s --no-print-directory TARGET=7 clean
 
 .PHONY: rebuild
