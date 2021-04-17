@@ -10,6 +10,33 @@
 
 namespace bgfx
 {
+	struct PredefinedUniform
+	{
+		enum Enum
+		{
+			ViewRect,
+			ViewTexel,
+			View,
+			InvView,
+			Proj,
+			InvProj,
+			ViewProj,
+			InvViewProj,
+			Model,
+			ModelView,
+			ModelViewProj,
+			AlphaRef,
+			Count
+		};
+
+		uint32_t m_loc;
+		uint16_t m_count;
+		uint8_t m_type;
+	};
+
+	const char* getPredefinedUniformName(PredefinedUniform::Enum _enum);
+	PredefinedUniform::Enum nameToPredefinedUniformEnum(const char* _name);
+
 	struct DescriptorType
 	{
 		enum Enum

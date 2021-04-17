@@ -952,40 +952,6 @@ namespace bgfx
 		return UniformType::Count;
 	}
 
-	static const char* s_predefinedName[PredefinedUniform::Count] =
-	{
-		"u_viewRect",
-		"u_viewTexel",
-		"u_view",
-		"u_invView",
-		"u_proj",
-		"u_invProj",
-		"u_viewProj",
-		"u_invViewProj",
-		"u_model",
-		"u_modelView",
-		"u_modelViewProj",
-		"u_alphaRef4",
-	};
-
-	const char* getPredefinedUniformName(PredefinedUniform::Enum _enum)
-	{
-		return s_predefinedName[_enum];
-	}
-
-	PredefinedUniform::Enum nameToPredefinedUniformEnum(const char* _name)
-	{
-		for (uint32_t ii = 0; ii < PredefinedUniform::Count; ++ii)
-		{
-			if (0 == bx::strCmp(_name, s_predefinedName[ii]) )
-			{
-				return PredefinedUniform::Enum(ii);
-			}
-		}
-
-		return PredefinedUniform::Count;
-	}
-
 	void srtToMatrix4_x1(void* _dst, const void* _src)
 	{
 		      Matrix4* mtx = reinterpret_cast<  Matrix4*>(_dst);

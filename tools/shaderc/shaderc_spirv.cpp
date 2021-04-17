@@ -351,12 +351,34 @@ namespace bgfx { namespace spirv
 			bx::write(_writer, un.texDimension);
 			bx::write(_writer, un.texFormat);
 
-			BX_TRACE("%s, %s, %d, %d, %d"
+			const char* kind = "invalid";
+
+			PredefinedUniform::Enum predefined = nameToPredefinedUniformEnum(un.name.c_str());
+			if (PredefinedUniform::Count != predefined)
+			{
+				kind = "predefined";
+			}
+			else if (UniformType::End == (~kUniformMask & un.type))
+			{
+				kind = "storage";
+			}
+			else if (UniformType::Sampler == (~kUniformMask & un.type))
+			{
+				kind = "sampler";
+			}
+			else
+			{
+				kind = "user";
+			}
+
+			bx::printf("\t%s: %s (%s), r.index %3d, r.count %2d, r.texComponent %1d, r.texDimension %1d\n"
+				, kind
 				, un.name.c_str()
-				, getUniformTypeName(un.type)
-				, un.num
+				, getUniformTypeName(UniformType::Enum(un.type & ~kUniformMask) )
 				, un.regIndex
 				, un.regCount
+				, un.texComponent
+				, un.texDimension
 				);
 		}
 		return size;

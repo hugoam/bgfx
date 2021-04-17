@@ -115,6 +115,40 @@ namespace bgfx
 		return s_textureDimensionToId[_dim].id;
 	}
 
+	static const char* s_predefinedName[PredefinedUniform::Count] =
+	{
+		"u_viewRect",
+		"u_viewTexel",
+		"u_view",
+		"u_invView",
+		"u_proj",
+		"u_invProj",
+		"u_viewProj",
+		"u_invViewProj",
+		"u_model",
+		"u_modelView",
+		"u_modelViewProj",
+		"u_alphaRef4",
+	};
+
+	const char* getPredefinedUniformName(PredefinedUniform::Enum _enum)
+	{
+		return s_predefinedName[_enum];
+	}
+
+	PredefinedUniform::Enum nameToPredefinedUniformEnum(const char* _name)
+	{
+		for (uint32_t ii = 0; ii < PredefinedUniform::Count; ++ii)
+		{
+			if (0 == bx::strCmp(_name, s_predefinedName[ii]))
+			{
+				return PredefinedUniform::Enum(ii);
+			}
+		}
+
+		return PredefinedUniform::Count;
+	}
+
 	static bool printAsm(uint32_t _offset, const DxbcInstruction& _instruction, void* _userData)
 	{
 		BX_UNUSED(_offset);
