@@ -16,9 +16,11 @@
 
 #if BGFX_SHADER_LANGUAGE_METAL || BGFX_SHADER_LANGUAGE_SPIRV
 #	define FORMAT(_format) [[spv::format_ ## _format]]
+#	define READONLY [[spv::nonwritable]]
 #	define WRITEONLY [[spv::nonreadable]]
 #else
 #	define FORMAT(_format)
+#	define READONLY
 #	define WRITEONLY
 #endif // BGFX_SHADER_LANGUAGE_METAL || BGFX_SHADER_LANGUAGE_SPIRV
 
@@ -95,7 +97,7 @@
 #define COMP_rgba32f  float4
 
 #define IMAGE2D_RO( _name, _format, _reg)                                       \
-	FORMAT(_format) Texture2D<COMP_ ## _format> _name : REGISTER(t, _reg);      \
+	READONLY FORMAT(_format) RWTexture2D<COMP_ ## _format> _name : REGISTER(t, _reg);      \
 
 #define UIMAGE2D_RO(_name, _format, _reg) IMAGE2D_RO(_name, _format, _reg)
 
@@ -110,7 +112,7 @@
 #define UIMAGE2D_RW(_name, _format, _reg) IMAGE2D_RW(_name, _format, _reg)
 
 #define IMAGE2D_ARRAY_RO(_name, _format, _reg)                                     \
-	FORMAT(_format) Texture2DArray<COMP_ ## _format> _name : REGISTER(t, _reg);    \
+	READONLY FORMAT(_format) RWTexture2DArray<COMP_ ## _format> _name : REGISTER(t, _reg);    \
 
 #define UIMAGE2D_ARRAY_RO(_name, _format, _reg) IMAGE2D_ARRAY_RO(_name, _format, _reg)
 
@@ -125,7 +127,7 @@
 #define UIMAGE2D_ARRAY_RW(_name, _format, _reg) IMAGE2D_ARRAY_RW(_name, _format, _reg)
 
 #define IMAGE3D_RO( _name, _format, _reg)                                     \
-	FORMAT(_format) Texture3D<COMP_ ## _format> _name : REGISTER(t, _reg);
+	READONLY FORMAT(_format) RWTexture3D<COMP_ ## _format> _name : REGISTER(t, _reg);
 
 #define UIMAGE3D_RO(_name, _format, _reg) IMAGE3D_RO(_name, _format, _reg)
 
@@ -152,18 +154,6 @@
 #define NUM_THREADS(_x, _y, _z) [numthreads(_x, _y, _z)]
 
 #define __IMAGE_IMPL_A(_format, _storeComponents, _type, _loadComponents)       \
-	_type imageLoad(Texture2D<_format> _image, ivec2 _uv)                       \
-	{                                                                           \
-		return _image[_uv]._loadComponents;                                     \
-	}                                                                           \
-	\
-	ivec2 imageSize(Texture2D<_format> _image)                                  \
-	{                                                                           \
-		uvec2 result;                                                           \
-		_image.GetDimensions(result.x, result.y);                               \
-		return ivec2(result);                                                   \
-	}                                                                           \
-	\
 	_type imageLoad(RWTexture2D<_format> _image, ivec2 _uv)                     \
 	{                                                                           \
 		return _image[_uv]._loadComponents;                                     \
@@ -181,18 +171,6 @@
 		return ivec2(result);                                                   \
 	}                                                                           \
 	\
-	_type imageLoad(Texture2DArray<_format> _image, ivec3 _uvw)                 \
-	{                                                                           \
-		return _image[_uvw]._loadComponents;                                    \
-	}                                                                           \
-	\
-	ivec3 imageSize(Texture2DArray<_format> _image)                             \
-	{                                                                           \
-		uvec3 result;                                                           \
-		_image.GetDimensions(result.x, result.y, result.z);                     \
-		return ivec3(result);                                                   \
-	}                                                                           \
-	\
 	_type imageLoad(RWTexture2DArray<_format> _image, ivec3 _uvw)               \
 	{                                                                           \
 		return _image[_uvw]._loadComponents;                                    \
@@ -204,18 +182,6 @@
 	}                                                                           \
 	\
 	ivec3 imageSize(RWTexture2DArray<_format> _image)                           \
-	{                                                                           \
-		uvec3 result;                                                           \
-		_image.GetDimensions(result.x, result.y, result.z);                     \
-		return ivec3(result);                                                   \
-	}                                                                           \
-	\
-	_type imageLoad(Texture3D<_format> _image, ivec3 _uvw)                    \
-	{                                                                           \
-		return _image[_uvw]._loadComponents;                                    \
-	}                                                                           \
-	\
-	ivec3 imageSize(Texture3D<_format> _image)                                \
 	{                                                                           \
 		uvec3 result;                                                           \
 		_image.GetDimensions(result.x, result.y, result.z);                     \
