@@ -16,6 +16,7 @@ extern "C"
 #define BGFX_SHADER_BIN_VERSION 11
 #define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', BGFX_SHADER_BIN_VERSION)
 #define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', BGFX_SHADER_BIN_VERSION)
+#define BGFX_CHUNK_MAGIC_GSH BX_MAKEFOURCC('G', 'S', 'H', BGFX_SHADER_BIN_VERSION)
 #define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', BGFX_SHADER_BIN_VERSION)
 
 #define BGFX_SHADERC_VERSION_MAJOR 1
@@ -1096,6 +1097,7 @@ namespace bgfx
 
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_COMPUTE");
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_FRAGMENT");
+		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_GEOMETRY");
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_VERTEX");
 
 		char glslDefine[128];
@@ -1214,6 +1216,10 @@ namespace bgfx
 
 		case 'f':
 			preprocessor.setDefine("BGFX_SHADER_TYPE_FRAGMENT=1");
+			break;
+			
+		case 'g':
+			preprocessor.setDefine("BGFX_SHADER_TYPE_GEOMETRY=1");
 			break;
 
 		case 'v':
@@ -1419,27 +1425,25 @@ namespace bgfx
 			}
 		}
 
-		if (invalidShaderAttribute)
+		if('f' == _options.shaderType)
 		{
+			bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
 		}
-		else if (raw)
+		else if('g' == _options.shaderType)
 		{
-			if ('f' == _options.shaderType)
-			{
-				bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
-			}
-			else if ('v' == _options.shaderType)
-			{
-				bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
-			}
-			else
-			{
-				bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
-			}
+			bx::write(_writer, BGFX_CHUNK_MAGIC_GSH);
+		}
+		else if('v' == _options.shaderType)
+		{
+			bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
+		}
+		else
+		{
+			bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
+		}
 
-			bx::write(_writer, inputHash);
-			bx::write(_writer, outputHash);
-		}
+		bx::write(_writer, inputHash);
+		bx::write(_writer, outputHash);
 
 		if (raw)
 		{
@@ -1570,10 +1574,6 @@ namespace bgfx
 					{
 						std::string code;
 
-						bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
-						bx::write(_writer, uint32_t(0) );
-						bx::write(_writer, outputHash);
-
 						if (profile->lang == ShadingLang::GLSL
 						||  profile->lang == ShadingLang::ESSL)
 						{
@@ -1649,6 +1649,222 @@ namespace bgfx
 				}
 			}
 		}
+		else if ('g' == _options.shaderType)
+        {
+			bx::StringView shader(input);
+			bx::StringView entry = bx::strFind(input, "void main()");
+            if (entry.isEmpty())
+            {
+                fprintf(stderr, "Shader entry point 'void main()' is not found.\n");
+            }
+            else
+            {
+				if (profile->lang == ShadingLang::GLSL
+				||  profile->lang == ShadingLang::ESSL
+				||  profile->lang == ShadingLang::Metal)
+                {
+					preprocessor.writef("layout(triangles) in;\n");
+					preprocessor.writef("layout(triangle_strip, max_vertices = 3) out;\n");
+
+                    for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            const char* name = var.m_name.c_str();
+                            preprocessor.writef("%s in %s %s %s%s;\n"
+                                , var.m_interpolation.c_str()
+                                , var.m_precision.c_str()
+                                , var.m_type.c_str()
+                                , name
+                                , "[]"
+                                );
+                        }
+                    }
+
+                    for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            preprocessor.writef("%s out %s %s;\n"
+                                , var.m_interpolation.c_str()
+                                , var.m_type.c_str()
+                                , var.m_name.c_str()
+                                );
+                        }
+                    }
+                }
+                else
+                {
+					bx::StringView brace = bx::strFind(bx::StringView(entry.getPtr(), shader.getTerm()), "{");
+					if(!brace.isEmpty())
+					{
+						bx::StringView block = bx::strFindBlock(bx::StringView(brace.getPtr(), shader.getTerm()), '{', '}');
+						if(!block.isEmpty())
+						{
+							strInsert(const_cast<char*>(block.getTerm() - 1), "__RETURN__;\n");
+						}
+					}
+
+                    preprocessor.writef(
+                        "#define lowp\n"
+                        "#define mediump\n"
+                        "#define highp\n"
+                        "#define ivec2 int2\n"
+                        "#define ivec3 int3\n"
+                        "#define ivec4 int4\n"
+                        "#define uvec2 uint2\n"
+                        "#define uvec3 uint3\n"
+                        "#define uvec4 uint4\n"
+                        "#define vec2 float2\n"
+                        "#define vec3 float3\n"
+                        "#define vec4 float4\n"
+                        "#define mat2 float2x2\n"
+                        "#define mat3 float3x3\n"
+                        "#define mat4 float4x4\n"
+                        );
+
+                    int vertexCount = 3;
+
+                    preprocessor.writef(
+                        "struct GSOutput\n"
+                        "{\n"
+                        "\tvec4 gl_Position : SV_POSITION;\n"
+						"#define gl_Position output.gl_Position\n");
+
+                    for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                            preprocessor.writef("#define %s output.%s\n", var.m_name.c_str(), var.m_name.c_str());
+                        }
+                    }
+                    preprocessor.writef("};\n");
+
+                    preprocessor.writef(
+                        "struct GSInput\n"
+                        "{\n");
+
+                    for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+                    {
+                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                        if (varyingIt != varyingMap.end())
+                        {
+                            const Varying& var = varyingIt->second;
+                            preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                        }
+                    }
+                    preprocessor.writef("};\n");
+
+					//entry[4] = '_';
+					*const_cast<char*>(entry.getPtr() + 4) = '_';
+
+                    preprocessor.writef("\n#define void_main()");
+                    preprocessor.writef(
+						" \\\n[maxvertexcount(3)]"
+						" \\\n\tvoid main("
+						" \\\n\ttriangle GSInput input[3],"
+						" \\\n\tinout TriangleStream<GSOutput> outputStream"
+						);
+
+                    preprocessor.writef(
+                        " \\\n)"
+                        " \\\n{"
+                        " \\\n\tGSOutput output;"
+                        );
+
+					for(InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+					{
+						VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+						if(varyingIt != varyingMap.end())
+						{
+							const Varying& var = varyingIt->second;
+							preprocessor.writef(" \\\n\t%s %s[3];", var.m_type.c_str(), var.m_name.c_str());
+							for(size_t i = 0; i < 3; ++i)
+								preprocessor.writef(" \\\n\t%s[%i] = input[%i].%s;", var.m_name.c_str(), int(i), int(i), var.m_name.c_str());
+						}
+					}
+
+					preprocessor.writef(
+						"\n#define __RETURN__ \\\n"
+						"\t} \\\n\n"
+					);
+                }
+
+                if (preprocessor.run(input))
+                {
+                    //BX_TRACE("Input file: %s", filePath);
+                    //BX_TRACE("Output file: %s", outFilePath);
+
+					if(_options.preprocessOnly)
+					{
+						bx::write(_writer, preprocessor.m_preprocessed.c_str(), (int32_t)preprocessor.m_preprocessed.size());
+
+						return true;
+					}
+
+                    {
+						std::string code;
+						
+						if (profile->lang == ShadingLang::GLSL
+						||  profile->lang == ShadingLang::ESSL
+						||  profile->lang == ShadingLang::Metal)
+                        {
+							bx::stringPrintf(code, "#version %d\n", profile->lang == ShadingLang::GLSL ? 430 : profile->id);
+
+							code += preprocessor.m_preprocessed;
+
+							bx::write(_writer, uint16_t(0));
+
+							uint32_t shaderSize = (uint32_t)code.size();
+							bx::write(_writer, shaderSize);
+							bx::write(_writer, code.c_str(), shaderSize);
+							bx::write(_writer, uint8_t(0));
+
+							compiled = true;
+                        }
+                        else
+                        {
+							code += _comment;
+							code += preprocessor.m_preprocessed;
+
+							if (profile->lang == ShadingLang::SpirV)
+							{
+								compiled = compileSPIRVShader(_options, profile->id, code, _writer);
+							}
+							else if(profile->lang == ShadingLang::PSSL)
+							{
+								compiled = compilePSSLShader(_options, 0, code, _writer);
+							}
+							else
+							{
+								compiled = compileHLSLShader(_options, profile->id, code, _writer);
+							}
+                        }
+                    }
+
+					if(compiled)
+					{
+						if(_options.depends)
+						{
+							std::string ofp = _options.outputFilePath + ".d";
+							bx::FileWriter writer;
+							if(bx::open(&writer, ofp.c_str()))
+							{
+								writef(&writer, "%s : %s\n", _options.outputFilePath.c_str(), preprocessor.m_depends.c_str());
+								bx::close(&writer);
+							}
+						}
+					}
+                }
+            }
+        }
 		else // Vertex/Fragment
 		{
 			bx::StringView shader(input);
@@ -2103,25 +2319,6 @@ namespace bgfx
 
 					{
 						std::string code;
-
-						if ('f' == _options.shaderType)
-						{
-							bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
-							bx::write(_writer, inputHash);
-							bx::write(_writer, uint32_t(0) );
-						}
-						else if ('v' == _options.shaderType)
-						{
-							bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
-							bx::write(_writer, uint32_t(0) );
-							bx::write(_writer, outputHash);
-						}
-						else
-						{
-							bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
-							bx::write(_writer, uint32_t(0) );
-							bx::write(_writer, outputHash);
-						}
 
 						if (profile->lang == ShadingLang::GLSL
 						||  profile->lang == ShadingLang::ESSL)

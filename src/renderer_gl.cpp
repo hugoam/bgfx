@@ -512,6 +512,7 @@ namespace bgfx { namespace gl
 			ARB_ES3_compatibility,
 			ARB_framebuffer_object,
 			ARB_framebuffer_sRGB,
+			ARB_geometry_shader,
 			ARB_get_program_binary,
 			ARB_half_float_pixel,
 			ARB_half_float_vertex,
@@ -576,6 +577,7 @@ namespace bgfx { namespace gl
 			EXT_framebuffer_blit,
 			EXT_framebuffer_object,
 			EXT_framebuffer_sRGB,
+			EXT_geometry_shader,
 			EXT_gpu_shader4,
 			EXT_multi_draw_indirect,
 			EXT_occlusion_query_boolean,
@@ -726,6 +728,7 @@ namespace bgfx { namespace gl
 		{ "ARB_ES3_compatibility",                    BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
 		{ "ARB_framebuffer_object",                   BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
 		{ "ARB_framebuffer_sRGB",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_geometry_shader",                      BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
 		{ "ARB_get_program_binary",                   BGFX_CONFIG_RENDERER_OPENGL >= 41, true  },
 		{ "ARB_half_float_pixel",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
 		{ "ARB_half_float_vertex",                    BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
@@ -790,6 +793,7 @@ namespace bgfx { namespace gl
 		{ "EXT_framebuffer_blit",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
 		{ "EXT_framebuffer_object",                   BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
 		{ "EXT_framebuffer_sRGB",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "EXT_geometry_shader",                      false,                             true  },
 		{ "EXT_gpu_shader4",                          false,                             true  },
 		{ "EXT_multi_draw_indirect",                  false,                             true  }, // GLES3.1 extension.
 		{ "EXT_occlusion_query_boolean",              false,                             true  }, // GLES2 extension.
@@ -2610,6 +2614,12 @@ namespace bgfx { namespace gl
 					|| !!(BGFX_CONFIG_RENDERER_OPENGLES >= 31)
 					|| s_extension[Extension::ARB_compute_shader].m_supported
 					;
+				
+				const bool geometrySupport = false
+					|| !!(BGFX_CONFIG_RENDERER_OPENGLES >= 31)
+					|| s_extension[Extension::ARB_geometry_shader].m_supported
+					|| s_extension[Extension::EXT_geometry_shader].m_supported
+					;
 
 				for (uint32_t ii = 0; ii < TextureFormat::Count; ++ii)
 				{
@@ -2905,6 +2915,11 @@ namespace bgfx { namespace gl
 					| (m_depthTextureSupport       ? BGFX_CAPS_TEXTURE_COMPARE_LEQUAL : 0)
 					| (computeSupport              ? BGFX_CAPS_COMPUTE                : 0)
 					| (m_imageLoadStoreSupport     ? BGFX_CAPS_IMAGE_RW               : 0)
+					;
+
+				g_caps.supported |= geometrySupport
+					? BGFX_CAPS_GEOMETRY_SHADER
+					: 0
 					;
 
 				g_caps.supported |= m_glctx.getCaps();
@@ -3213,10 +3228,11 @@ namespace bgfx { namespace gl
 			m_shaders[_handle.idx].destroy();
 		}
 
-		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _fsh) override
+		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _gsh, ShaderHandle _fsh) override
 		{
 			ShaderGL dummyFragmentShader;
-			m_program[_handle.idx].create(m_shaders[_vsh.idx], isValid(_fsh) ? m_shaders[_fsh.idx] : dummyFragmentShader);
+			ShaderGL dummyGeometryShader;
+			m_program[_handle.idx].create(m_shaders[_vsh.idx], isValid(_gsh) ? m_shaders[_gsh.idx] : dummyGeometryShader, isValid(_fsh) ? m_shaders[_fsh.idx] : dummyFragmentShader);
 		}
 
 		void destroyProgram(ProgramHandle _handle) override
@@ -4696,10 +4712,10 @@ namespace bgfx { namespace gl
 		return UniformType::End;
 	}
 
-	void ProgramGL::create(const ShaderGL& _vsh, const ShaderGL& _fsh)
+	void ProgramGL::create(const ShaderGL& _vsh, const ShaderGL& _gsh, const ShaderGL& _fsh)
 	{
 		m_id = glCreateProgram();
-		BX_TRACE("Program create: GL%d: GL%d, GL%d", m_id, _vsh.m_id, _fsh.m_id);
+		BX_TRACE("Program create: GL%d: GL%d, GL%d, GL%d", m_id, _vsh.m_id, _gsh.m_id, _fsh.m_id);
 
 		const uint64_t id = (uint64_t(_vsh.m_hash)<<32) | _fsh.m_hash;
 		const bool cached = s_renderGL->programFetchFromCache(m_id, id);
@@ -4710,6 +4726,11 @@ namespace bgfx { namespace gl
 			if (0 != _vsh.m_id)
 			{
 				GL_CHECK(glAttachShader(m_id, _vsh.m_id) );
+				
+				if (0 != _gsh.m_id)
+				{
+					GL_CHECK(glAttachShader(m_id, _gsh.m_id) );
+				}
 
 				if (0 != _fsh.m_id)
 				{
@@ -5871,6 +5892,12 @@ namespace bgfx { namespace gl
 		{
 			m_type = GL_FRAGMENT_SHADER;
 		}
+#if !BX_PLATFORM_EMSCRIPTEN
+		else if (isShaderType(magic, 'G') )
+		{
+			m_type = GL_GEOMETRY_SHADER;
+		}
+#endif
 		else if (isShaderType(magic, 'V') )
 		{
 			m_type = GL_VERTEX_SHADER;
@@ -5942,8 +5969,8 @@ namespace bgfx { namespace gl
 
 		if (0 != m_id)
 		{
-			if (GL_COMPUTE_SHADER != m_type
-			&&  0 != bx::strCmp(code, "#version", 8) ) // #2000
+			if ((GL_FRAGMENT_SHADER == m_type || GL_VERTEX_SHADER == m_type)
+			&&  0 != bx::strCmp(code, "#version 430", 12) ) // #2000
 			{
 				int32_t tempLen = code.getLength() + (4<<10);
 				char* temp = (char*)alloca(tempLen);
@@ -6473,6 +6500,29 @@ namespace bgfx { namespace gl
 
 				code = temp;
 			}
+#if !BX_PLATFORM_EMSCRIPTEN
+			else if (GL_GEOMETRY_SHADER == m_type)
+			{
+				int32_t codeLen = (int32_t)bx::strLen(code);
+				int32_t tempLen = codeLen + (4<<10);
+				char* temp = (char*)alloca(tempLen);
+				bx::StaticMemoryBlockWriter writer(temp, tempLen);
+
+				bx::write(&writer, "#version 430\n");
+				bx::write(&writer, "#define texture2DLod    textureLod\n");
+				bx::write(&writer, "#define texture3DLod    textureLod\n");
+				bx::write(&writer, "#define textureCubeLod  textureLod\n");
+				bx::write(&writer, "#define texture2DGrad   textureGrad\n");
+				bx::write(&writer, "#define texture3DGrad   textureGrad\n");
+				bx::write(&writer, "#define textureCubeGrad textureGrad\n");
+
+				int32_t verLen = bx::strLen("#version 430\n");
+				bx::write(&writer, code.getPtr() + verLen, codeLen - verLen);
+				bx::write(&writer, '\0');
+
+				code = temp;
+			}
+#endif
 
 			GL_CHECK(glShaderSource(m_id, 1, (const GLchar**)&code, NULL) );
 			GL_CHECK(glCompileShader(m_id) );

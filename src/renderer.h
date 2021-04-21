@@ -100,8 +100,8 @@ namespace bgfx
 			for (uint32_t ii = 0, num = _program.m_numPredefined; ii < num; ++ii)
 			{
 				const PredefinedUniform& predefined = _program.m_predefined[ii];
-				uint8_t flags = predefined.m_type&kUniformFragmentBit;
-				switch (predefined.m_type&(~kUniformFragmentBit) )
+				uint8_t flags = predefined.m_type&(kUniformFragmentBit|kUniformGeometryBit);
+				switch (predefined.m_type&(~(kUniformFragmentBit|kUniformGeometryBit)) )
 				{
 				case PredefinedUniform::ViewRect:
 					{

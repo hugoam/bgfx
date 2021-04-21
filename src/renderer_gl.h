@@ -1480,7 +1480,7 @@ namespace bgfx { namespace gl
 		{
 		}
 
-		void create(const ShaderGL& _vsh, const ShaderGL& _fsh);
+		void create(const ShaderGL& _vsh, const ShaderGL& _gsh, const ShaderGL& _fsh);
 		void destroy();
 		void init();
 		void bindInstanceData(uint32_t _stride, uint32_t _baseVertex = 0) const;
