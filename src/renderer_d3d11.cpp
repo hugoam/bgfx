@@ -683,6 +683,7 @@ namespace bgfx { namespace d3d11
 			, m_wireframe(false)
 			, m_currentProgram(NULL)
 			, m_vsChanges(0)
+			, m_gsChanges(0)
 			, m_fsChanges(0)
 			, m_rtMsaa(false)
 			, m_timerQuerySupport(false)
@@ -1792,9 +1793,12 @@ namespace bgfx { namespace d3d11
 			m_shaders[_handle.idx].destroy();
 		}
 
-		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _fsh) override
+		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _gsh, ShaderHandle _fsh) override
 		{
-			m_program[_handle.idx].create(&m_shaders[_vsh.idx], isValid(_fsh) ? &m_shaders[_fsh.idx] : NULL);
+			ShaderD3D11* vsh = &m_shaders[_vsh.idx];
+			ShaderD3D11* gsh = isValid(_gsh) ? &m_shaders[_gsh.idx] : NULL;
+			ShaderD3D11* fsh = isValid(_fsh) ? &m_shaders[_fsh.idx] : NULL;
+			m_program[_handle.idx].create(vsh, gsh, fsh);
 		}
 
 		void destroyProgram(ProgramHandle _handle) override
@@ -2133,8 +2137,18 @@ namespace bgfx { namespace d3d11
 			m_currentProgram = &program;
 			deviceCtx->VSSetShader(program.m_vsh->m_vertexShader, NULL, 0);
 			deviceCtx->VSSetConstantBuffers(0, 1, &program.m_vsh->m_buffer);
-			deviceCtx->PSSetShader(program.m_fsh->m_pixelShader, NULL, 0);
-			deviceCtx->PSSetConstantBuffers(0, 1, &program.m_fsh->m_buffer);
+
+			if (NULL != program.m_gsh)
+			{
+				deviceCtx->GSSetShader(program.m_gsh->m_geometryShader, NULL, 0);
+				deviceCtx->GSSetConstantBuffers(0, 1, &program.m_gsh->m_buffer);
+			}
+
+			if (NULL != program.m_fsh)
+			{
+				deviceCtx->PSSetShader(program.m_fsh->m_pixelShader, NULL, 0);
+				deviceCtx->PSSetConstantBuffers(0, 1, &program.m_fsh->m_buffer);
+			}
 
 			VertexBufferD3D11& vb = m_vertexBuffers[_blitter.m_vb->handle.idx];
 			VertexLayout& layout  = m_vertexLayouts[_blitter.m_vb->layoutHandle.idx];
@@ -2522,6 +2536,11 @@ namespace bgfx { namespace d3d11
 				bx::memCopy(&m_fsScratch[_regIndex], _val, _numRegs*16);
 				m_fsChanges += _numRegs;
 			}
+			else if (_flags&BGFX_UNIFORM_GEOMETRYBIT)
+			{
+				bx::memCopy(&m_gsScratch[_regIndex], _val, _numRegs*16);
+				m_gsChanges += _numRegs;
+			}
 			else
 			{
 				bx::memCopy(&m_vsScratch[_regIndex], _val, _numRegs*16);
@@ -2549,6 +2568,16 @@ namespace bgfx { namespace d3d11
 				}
 
 				m_vsChanges = 0;
+			}
+
+			if (0 < m_gsChanges)
+			{
+				if (NULL != m_currentProgram->m_gsh->m_buffer)
+				{
+					m_deviceCtx->UpdateSubresource(m_currentProgram->m_gsh->m_buffer, 0, 0, m_gsScratch, 0, 0);
+				}
+
+				m_gsChanges = 0;
 			}
 
 			if (0 < m_fsChanges)
@@ -3377,6 +3406,7 @@ namespace bgfx { namespace d3d11
 #define CASE_IMPLEMENT_UNIFORM(_uniform, _dxsuffix, _type) \
 		case UniformType::_uniform: \
 		case UniformType::_uniform|kUniformFragmentBit: \
+		case UniformType::_uniform|kUniformGeometryBit: \
 				{ \
 					setShaderUniform(uint8_t(type), loc, data, num); \
 				} \
@@ -3385,7 +3415,8 @@ namespace bgfx { namespace d3d11
 				switch ( (uint32_t)type)
 				{
 				case UniformType::Mat3:
-				case UniformType::Mat3|kUniformFragmentBit: \
+				case UniformType::Mat3|kUniformFragmentBit:
+				case UniformType::Mat3|kUniformGeometryBit:
 					 {
 						 float* value = (float*)data;
 						 for (uint32_t ii = 0, count = num/3; ii < count; ++ii,  loc += 3*16, value += 9)
@@ -3525,6 +3556,8 @@ namespace bgfx { namespace d3d11
 					deviceCtx->PSSetShader(NULL, NULL, 0);
 				}
 
+				deviceCtx->GSSetShader(NULL, NULL, 0);
+
 				VertexBufferD3D11& vb = m_vertexBuffers[_clearQuad.m_vb.idx];
 				const VertexLayout& layout = _clearQuad.m_layout;
 
@@ -3610,8 +3643,10 @@ namespace bgfx { namespace d3d11
 		ProgramD3D11* m_currentProgram;
 
 		uint8_t m_vsScratch[64<<10];
+		uint8_t m_gsScratch[64<<10];
 		uint8_t m_fsScratch[64<<10];
 		uint32_t m_vsChanges;
+		uint32_t m_gsChanges;
 		uint32_t m_fsChanges;
 
 		FrameBufferHandle m_fbh;
@@ -4082,6 +4117,7 @@ namespace bgfx { namespace d3d11
 		bx::read(&reader, magic);
 
 		const bool fragment = isShaderType(magic, 'F');
+		const bool geometry = isShaderType(magic, 'G');
 
 		uint32_t hashIn;
 		bx::read(&reader, hashIn);
@@ -4108,7 +4144,8 @@ namespace bgfx { namespace d3d11
 			, count
 			);
 
-		const uint8_t fragmentBit = fragment ? kUniformFragmentBit : 0;
+		const uint8_t fragmentBit = (fragment ? kUniformFragmentBit : 0)
+								  | (geometry ? kUniformGeometryBit : 0);
 
 		if (0 < count)
 		{
@@ -4169,7 +4206,7 @@ namespace bgfx { namespace d3d11
 						}
 
 						kind = "user";
-						m_constantBuffer->writeUniformHandle( (UniformType::Enum)(type|fragmentBit), regIndex, info->m_handle, regCount);
+						m_constantBuffer->writeUniformHandle( (UniformType::Enum)((type&~BGFX_UNIFORM_MASK)|fragmentBit), regIndex, info->m_handle, regCount);
 					}
 				}
 				else
@@ -4233,7 +4270,12 @@ namespace bgfx { namespace d3d11
 			DX_CHECK(s_renderD3D11->m_device->CreatePixelShader(code, shaderSize, NULL, &m_pixelShader) );
 			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create fragment shader.");
 		}
-		else if (isShaderType(magic, 'V') )
+		else if(isShaderType(magic, 'G'))
+		{
+			DX_CHECK(s_renderD3D11->m_device->CreateGeometryShader(code, shaderSize, NULL, &m_geometryShader) );
+			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create geometry shader.");
+		}
+		else if(isShaderType(magic, 'V'))
 		{
 			m_hash = bx::hash<bx::HashMurmur2A>(code, shaderSize);
 			m_code = copy(code, shaderSize);
@@ -4246,6 +4288,8 @@ namespace bgfx { namespace d3d11
 			DX_CHECK(s_renderD3D11->m_device->CreateComputeShader(code, shaderSize, NULL, &m_computeShader) );
 			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create compute shader.");
 		}
+
+		BX_ASSERT(m_pixelShader || m_geometryShader || m_vertexShader || m_computeShader, "No shader");
 
 		uint8_t numAttrs = 0;
 		bx::read(&reader, numAttrs);
@@ -6013,6 +6057,7 @@ namespace bgfx { namespace d3d11
 						m_currentProgram = NULL;
 
 						deviceCtx->VSSetShader(NULL, NULL, 0);
+						deviceCtx->GSSetShader(NULL, NULL, 0);
 						deviceCtx->PSSetShader(NULL, NULL, 0);
 					}
 					else
@@ -6023,6 +6068,17 @@ namespace bgfx { namespace d3d11
 						const ShaderD3D11* vsh = program.m_vsh;
 						deviceCtx->VSSetShader(vsh->m_vertexShader, NULL, 0);
 						deviceCtx->VSSetConstantBuffers(0, 1, &vsh->m_buffer);
+						
+						const ShaderD3D11* gsh = program.m_gsh;
+                        if (NULL != gsh)
+                        {
+                            deviceCtx->GSSetShader(gsh->m_geometryShader, NULL, 0);
+                            deviceCtx->GSSetConstantBuffers(0, 1, &gsh->m_buffer);
+                        }
+                        else
+                        {
+                            deviceCtx->GSSetShader(NULL, NULL, 0);
+                        }
 
 						const ShaderD3D11* fsh = program.m_fsh;
 						if (NULL != fsh
@@ -6051,6 +6107,15 @@ namespace bgfx { namespace d3d11
 						if (NULL != vcb)
 						{
 							commit(*vcb);
+						}
+						
+						if (NULL != program.m_gsh)
+						{
+							UniformBuffer* gcb = program.m_gsh->m_constantBuffer;
+							if (NULL != gcb)
+							{
+								commit(*gcb);
+							}
 						}
 
 						if (NULL != program.m_fsh)

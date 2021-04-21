@@ -2570,6 +2570,25 @@ namespace bgfx
 	/// @attention C99 equivalent is `bgfx_destroy_shader`.
 	///
 	void destroy(ShaderHandle _handle);
+	
+	/// Create program with vertex geometry and fragment shaders.
+	///
+	/// @param[in] _vsh Vertex shader.
+	/// @param[in] _gsh Geometry shader.
+	/// @param[in] _fsh Fragment shader.
+	/// @param[in] _destroyShaders If true, shaders will be destroyed when
+	///   program is destroyed.
+	/// @returns Program handle if vertex shader output and fragment shader
+	///   input are matching, otherwise returns invalid program handle.
+	///
+	/// @attention C99 equivalent is `bgfx_create_program`.
+	///
+	ProgramHandle createProgram(
+		  ShaderHandle _vsh
+		, ShaderHandle _gsh
+		, ShaderHandle _fsh
+		, bool _destroyShaders = false
+		);
 
 	/// Create program with vertex and fragment shaders.
 	///
