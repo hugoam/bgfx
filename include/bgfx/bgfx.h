@@ -272,6 +272,21 @@ namespace bgfx
 		};
 	};
 
+	/// Uniform frequency enum.
+	///
+	/// @attention C99 equivalent is `bgfx_uniform_freq_t`.
+	///
+	struct UniformFreq
+	{
+		enum Enum
+		{
+			Frame,
+			View,
+			Submit,
+			Count
+		};
+	};
+
 	/// Backbuffer ratio enum.
 	///
 	/// @attention C99 equivalent is `bgfx_backbuffer_ratio_t`.
@@ -3166,6 +3181,7 @@ namespace bgfx
 		  const char* _name
 		, UniformType::Enum _type
 		, uint16_t _num = 1
+		, UniformFreq::Enum _freq = UniformFreq::Submit
 		);
 
 	/// Retrieve uniform info.
@@ -3179,6 +3195,21 @@ namespace bgfx
 		  UniformHandle _handle
 		, UniformInfo& _info
 		);
+
+	/// Set shader uniform parameter for frame.
+	///
+	/// @param[in] _handle Uniform.
+	/// @param[in] _value Pointer to uniform data.
+	/// @param[in] _num Number of elements. Passing `UINT16_MAX` will
+	///   use the _num passed on uniform creation.
+	///
+	/// @attention C99 equivalent is `bgfx_set_view_order`.
+	///
+	void setFrameUniform(
+		UniformHandle _handle
+		, const void* _value
+		, uint16_t _num = 1
+	);
 
 	/// Destroy shader uniform parameter.
 	///
@@ -3449,6 +3480,46 @@ namespace bgfx
 		, uint16_t _num = UINT16_MAX
 		, const ViewId* _remap = NULL
 		);
+
+	/// Set shader uniform parameter for view.
+	///
+	/// @param[in] _id View id.
+	/// @param[in] _handle Uniform.
+	/// @param[in] _value Pointer to uniform data.
+	/// @param[in] _num Number of elements. Passing `UINT16_MAX` will
+	///   use the _num passed on uniform creation.
+	///
+	/// @attention C99 equivalent is `bgfx_set_view_order`.
+	///
+	void setViewUniform(
+		ViewId _id
+		, UniformHandle _handle
+		, const void* _value
+		, uint16_t _num = 1
+	);
+
+	/// Set texture stage for view.
+	///
+	/// @param[in] _id View id.
+	/// @param[in] _stage Texture unit.
+	/// @param[in] _sampler Program sampler.
+	/// @param[in] _handle Texture handle.
+	/// @param[in] _flags Texture sampling mode. Default value UINT32_MAX uses
+	///   texture sampling settings from the texture.
+	///   - `BGFX_SAMPLER_[U/V/W]_[MIRROR/CLAMP]` - Mirror or clamp to edge wrap
+	///     mode.
+	///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
+	///     sampling.
+	///
+	/// @attention C99 equivalent is `bgfx_set_view_order`.
+	///
+	void setViewTexture(
+		ViewId _id
+		, uint8_t _stage
+		, UniformHandle _sampler
+		, TextureHandle _handle
+		, uint32_t _flags = UINT32_MAX
+	);
 
 	/// Reset all view settings to default.
 	///
@@ -3854,6 +3925,25 @@ namespace bgfx
 		, TextureHandle _handle
 		, uint32_t _flags = UINT32_MAX
 		);
+
+	/// Set texture stage for draw primitive.
+	///
+	/// @param[in] _stage Texture unit.
+	/// @param[in] _handle Texture handle.
+	/// @param[in] _flags Texture sampling mode. Default value UINT32_MAX uses
+	///   texture sampling settings from the texture.
+	///   - `BGFX_SAMPLER_[U/V/W]_[MIRROR/CLAMP]` - Mirror or clamp to edge wrap
+	///     mode.
+	///   - `BGFX_SAMPLER_[MIN/MAG/MIP]_[POINT/ANISOTROPIC]` - Point or anisotropic
+	///     sampling.
+	///
+	/// @attention C99 equivalent is `bgfx_encoder_set_texture`.
+	///
+	void setTexture(
+		uint8_t _stage
+		, TextureHandle _handle
+		, uint32_t _flags = UINT32_MAX
+	);
 
 	/// Submit an empty primitive for rendering. Uniforms and draw state
 	/// will be applied but no geometry will be submitted.

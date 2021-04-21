@@ -207,7 +207,7 @@ namespace bgfx { namespace noop
 		{
 		}
 
-		void createUniform(UniformHandle /*_handle*/, UniformType::Enum /*_type*/, uint16_t /*_num*/, const char* /*_name*/) override
+		void createUniform(UniformHandle /*_handle*/, UniformType::Enum /*_type*/, uint16_t /*_num*/, const char* /*_name*/, UniformFreq::Enum /*_freq*/) override
 		{
 		}
 

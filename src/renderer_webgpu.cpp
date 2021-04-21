@@ -1006,7 +1006,7 @@ namespace bgfx { namespace webgpu
 			}
 		}
 
-		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name) override
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) override
 		{
 			if (NULL != m_uniforms[_handle.idx])
 			{
@@ -1017,7 +1017,7 @@ namespace bgfx { namespace webgpu
 			void* data = BX_ALLOC(g_allocator, size);
 			bx::memSet(data, 0, size);
 			m_uniforms[_handle.idx] = data;
-			m_uniformReg.add(_handle, _name);
+			m_uniformReg.add(_handle, _name, _freq);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
@@ -2659,13 +2659,14 @@ namespace bgfx { namespace webgpu
 					const UniformRegInfo* info = s_renderWgpu->m_uniformReg.find(name);
 					BX_ASSERT(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
 
-					if(NULL == m_constantBuffer)
+					const UniformFreq::Enum freq = info->m_freq;
+					if(NULL == m_constantBuffer[freq])
 					{
-						m_constantBuffer = UniformBuffer::create(1024);
+						m_constantBuffer[freq] = UniformBuffer::create(1024);
 					}
 
 					kind = "user";
-					m_constantBuffer->writeUniformHandle((UniformType::Enum)(type | fragmentBit), regIndex, info->m_handle, regCount);
+					m_constantBuffer[freq]->writeUniformHandle((UniformType::Enum)(type | fragmentBit), regIndex, info->m_handle, regCount);
 				}
 
 				BX_TRACE("\t%s: %s (%s), r.index %3d, r.count %2d, r.texComponent %1d, r.texDimension %1d"
@@ -2680,9 +2681,12 @@ namespace bgfx { namespace webgpu
 				BX_UNUSED(kind);
 			}
 
-			if (NULL != m_constantBuffer)
+			for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
 			{
-				m_constantBuffer->finish();
+				if (NULL != m_constantBuffer[ii])
+				{
+					m_constantBuffer[ii]->finish();
+				}
 			}
 		}
 
@@ -4175,6 +4179,9 @@ namespace bgfx { namespace webgpu
 			, s_viewName
 			);
 
+		rendererUpdateUniforms(this, _render->m_frameUniforms, 0, UINT32_MAX);
+		_render->m_frameUniforms->reset();
+
 		if (0 == (_render->m_debug & BGFX_DEBUG_IFH))
 		{
 			viewState.m_rect = _render->m_view[0].m_rect;
@@ -4275,6 +4282,16 @@ namespace bgfx { namespace webgpu
 						{
 							clearQuad(_clearQuad, viewState.m_rect, clr, _render->m_colorPalette);
 						}
+
+						if (UINT32_MAX != _render->m_view[view].m_uniformBegin)
+						{
+							rendererUpdateUniforms(this
+								, _render->m_viewUniforms
+								, _render->m_view[view].m_uniformBegin
+								, _render->m_view[view].m_uniformEnd
+								);
+							_render->m_viewUniforms->reset();
+						}
 					}
 				}
 
@@ -4318,7 +4335,7 @@ namespace bgfx { namespace webgpu
 
 					bool programChanged = false;
 					bool constantsChanged = compute.m_uniformBegin < compute.m_uniformEnd;
-					rendererUpdateUniforms(this, _render->m_uniformBuffer[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
+					rendererUpdateUniforms(this, _render->m_submitUniforms[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
 
 					if (key.m_program.idx != currentProgram.idx)
 					{
@@ -4345,14 +4362,14 @@ namespace bgfx { namespace webgpu
 
 					if (constantsChanged)
 					{
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer;
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
 						if (NULL != vcb)
 						{
 							commit(*vcb);
 						}
 					}
 
-					viewState.setPredefined<4>(this, view, program, _render, compute);
+					viewState.setPredefined<4>(this, view, program, _render, compute, programChanged || viewChanged);
 
 					uint32_t numOffset = 0;
 					uint32_t offsets[2] = { 0, 0 };
@@ -4506,7 +4523,7 @@ namespace bgfx { namespace webgpu
 
 				bool programChanged = false;
 				bool constantsChanged = draw.m_uniformBegin < draw.m_uniformEnd;
-				rendererUpdateUniforms(this, _render->m_uniformBuffer[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
+				rendererUpdateUniforms(this, _render->m_submitUniforms[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
 
 				bool vertexStreamChanged = hasVertexStreamChanged(currentState, draw);
 
@@ -4615,7 +4632,7 @@ namespace bgfx { namespace webgpu
 
 					if (constantsChanged)
 					{
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer;
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
 						if (NULL != vcb)
 						{
 							commit(*vcb);
@@ -4624,14 +4641,14 @@ namespace bgfx { namespace webgpu
 
 					if (constantsChanged)
 					{
-						UniformBuffer* fcb = program.m_fsh->m_constantBuffer;
+						UniformBuffer* fcb = program.m_fsh->m_constantBuffer[UniformFreq::Submit];
 						if (NULL != fcb)
 						{
 							commit(*fcb);
 						}
 					}
 
-					viewState.setPredefined<4>(this, view, program, _render, draw);
+					viewState.setPredefined<4>(this, view, program, _render, draw, true); // programChanged || viewChanged);
 
 					bool hasPredefined = 0 < program.m_numPredefined;
 

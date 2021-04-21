@@ -8,6 +8,8 @@
 
 #include "bgfx_p.h"
 
+#include <cstdio>
+
 namespace bgfx
 {
 	inline constexpr uint32_t toAbgr8(uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _a = 0xff)
@@ -99,6 +101,8 @@ namespace bgfx
 
 			for (uint32_t ii = 0, num = _program.m_numPredefined; ii < num; ++ii)
 			{
+				//printf("uploading predefined uniform count %i\n", int(ii));
+
 				const PredefinedUniform& predefined = _program.m_predefined[ii];
 				uint8_t flags = predefined.m_type&(kUniformFragmentBit|kUniformGeometryBit);
 				switch (predefined.m_type&(~(kUniformFragmentBit|kUniformGeometryBit)) )

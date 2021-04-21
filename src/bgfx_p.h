@@ -1504,6 +1504,7 @@ namespace bgfx
 	struct UniformRegInfo
 	{
 		UniformHandle m_handle;
+		UniformFreq::Enum m_freq;
 	};
 
 	class UniformRegistry
@@ -1528,7 +1529,7 @@ namespace bgfx
 			return NULL;
 		}
 
-		const UniformRegInfo& add(UniformHandle _handle, const char* _name)
+		const UniformRegInfo& add(UniformHandle _handle, const char* _name, UniformFreq::Enum _freq)
 		{
 			BX_ASSERT(isValid(_handle), "Uniform handle is invalid (name: %s)!", _name);
 			const uint32_t key = bx::hash<bx::HashMurmur2A>(_name);
@@ -1537,6 +1538,7 @@ namespace bgfx
 
 			UniformRegInfo& info = m_info[_handle.idx];
 			info.m_handle = _handle;
+			info.m_freq = _freq;
 
 			return info;
 		}
@@ -1823,6 +1825,7 @@ namespace bgfx
 		String            m_name;
 		UniformType::Enum m_type;
 		uint16_t          m_num;
+		UniformFreq::Enum m_freq;
 		int16_t           m_refCount;
 	};
 
@@ -1923,6 +1926,14 @@ namespace bgfx
 			setMode(ViewMode::Default);
 			setFrameBuffer(BGFX_INVALID_HANDLE);
 			setTransform(NULL, NULL);
+			m_uniformBegin = UINT32_MAX;
+			m_uniformEnd = UINT32_MAX;
+		}
+
+		void start()
+		{
+			m_uniformBegin = UINT32_MAX;
+			m_uniformEnd = UINT32_MAX;
 		}
 
 		void setRect(uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height)
@@ -1989,6 +2000,9 @@ namespace bgfx
 		Matrix4 m_proj;
 		FrameBufferHandle m_fbh;
 		uint8_t m_mode;
+
+		uint32_t m_uniformBegin;
+		uint32_t m_uniformEnd;
 	};
 
 	struct FrameCache
@@ -2024,7 +2038,9 @@ namespace bgfx
 	BX_ALIGN_DECL_CACHE_LINE(struct) Frame
 	{
 		Frame()
-			: m_waitSubmit(0)
+			: m_frameUniforms(NULL)
+			, m_viewUniforms(NULL)
+			, m_waitSubmit(0)
 			, m_waitRender(0)
 			, m_capture(false)
 		{
@@ -2050,11 +2066,14 @@ namespace bgfx
 			{
 				const uint32_t num = g_caps.limits.maxEncoders;
 
-				m_uniformBuffer = (UniformBuffer**)BX_ALLOC(g_allocator, sizeof(UniformBuffer*)*num);
+				m_frameUniforms = UniformBuffer::create();
+				m_viewUniforms = UniformBuffer::create();
+
+				m_submitUniforms = (UniformBuffer**)BX_ALLOC(g_allocator, sizeof(UniformBuffer*)*num);
 
 				for (uint32_t ii = 0; ii < num; ++ii)
 				{
-					m_uniformBuffer[ii] = UniformBuffer::create();
+					m_submitUniforms[ii] = UniformBuffer::create();
 				}
 			}
 
@@ -2065,12 +2084,20 @@ namespace bgfx
 
 		void destroy()
 		{
+			UniformBuffer::destroy(m_frameUniforms);
+			UniformBuffer::destroy(m_viewUniforms);
+
 			for (uint32_t ii = 0, num = g_caps.limits.maxEncoders; ii < num; ++ii)
 			{
-				UniformBuffer::destroy(m_uniformBuffer[ii]);
+				UniformBuffer::destroy(m_submitUniforms[ii]);
 			}
 
-			BX_FREE(g_allocator, m_uniformBuffer);
+			//for (uint32_t ii = 0, num = BGFX_CONFIG_MAX_VIEWS; ii < num; ++ii)
+			//{
+			//	UniformBuffer::destroy(m_viewUniforms[ii]);
+			//}
+
+			BX_FREE(g_allocator, m_submitUniforms);
 			BX_DELETE(g_allocator, m_textVideoMem);
 		}
 
@@ -2095,6 +2122,11 @@ namespace bgfx
 			m_cmdPost.start();
 			m_capture = false;
 			m_numScreenShots = 0;
+
+			for (uint32_t ii = 0, num = BGFX_CONFIG_MAX_VIEWS; ii < num; ++ii)
+			{
+				m_view[ii].start();
+			}
 		}
 
 		void finish()
@@ -2220,7 +2252,9 @@ namespace bgfx
 		BlitItem m_blitItem[BGFX_CONFIG_MAX_BLIT_ITEMS+1];
 
 		FrameCache m_frameCache;
-		UniformBuffer** m_uniformBuffer;
+		UniformBuffer* m_frameUniforms;
+		UniformBuffer* m_viewUniforms;
+		UniformBuffer** m_submitUniforms;
 
 		uint32_t m_numRenderItems;
 		uint16_t m_numBlitItems;
@@ -2332,7 +2366,7 @@ namespace bgfx
 			m_uniformBegin = 0;
 			m_uniformEnd   = 0;
 
-			UniformBuffer* uniformBuffer = m_frame->m_uniformBuffer[m_uniformIdx];
+			UniformBuffer* uniformBuffer = m_frame->m_submitUniforms[m_uniformIdx];
 			uniformBuffer->reset();
 
 			m_numSubmitted = 0;
@@ -2343,8 +2377,12 @@ namespace bgfx
 		{
 			if (_finalize)
 			{
-				UniformBuffer* uniformBuffer = m_frame->m_uniformBuffer[m_uniformIdx];
+				m_frame->m_frameUniforms->finish();
+				m_frame->m_viewUniforms->finish();
+
+				UniformBuffer* uniformBuffer = m_frame->m_submitUniforms[m_uniformIdx];
 				uniformBuffer->finish();
+			
 
 				m_cpuTimeEnd = bx::getHPCounter();
 			}
@@ -2362,7 +2400,7 @@ namespace bgfx
 
 		void setMarker(const char* _name)
 		{
-			UniformBuffer* uniformBuffer = m_frame->m_uniformBuffer[m_uniformIdx];
+			UniformBuffer* uniformBuffer = m_frame->m_submitUniforms[m_uniformIdx];
 			uniformBuffer->writeMarker(_name);
 		}
 
@@ -2378,8 +2416,8 @@ namespace bgfx
 				m_uniformSet.insert(_handle.idx);
 			}
 
-			UniformBuffer::update(&m_frame->m_uniformBuffer[m_uniformIdx]);
-			UniformBuffer* uniformBuffer = m_frame->m_uniformBuffer[m_uniformIdx];
+			UniformBuffer::update(&m_frame->m_submitUniforms[m_uniformIdx]);
+			UniformBuffer* uniformBuffer = m_frame->m_submitUniforms[m_uniformIdx];
 			uniformBuffer->writeUniform(_type, _handle.idx, _value, _num);
 		}
 
@@ -2936,7 +2974,7 @@ namespace bgfx
 		virtual void createFrameBuffer(FrameBufferHandle _handle, uint8_t _num, const Attachment* _attachment) = 0;
 		virtual void createFrameBuffer(FrameBufferHandle _handle, void* _nwh, uint32_t _width, uint32_t _height, TextureFormat::Enum _format, TextureFormat::Enum _depthFormat) = 0;
 		virtual void destroyFrameBuffer(FrameBufferHandle _handle) = 0;
-		virtual void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name) = 0;
+		virtual void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) = 0;
 		virtual void destroyUniform(UniformHandle _handle) = 0;
 		virtual void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) = 0;
 		virtual void updateViewName(ViewId _id, const char* _name) = 0;
@@ -4027,7 +4065,7 @@ namespace bgfx
 				PredefinedUniform::Enum predefined = nameToPredefinedUniformEnum(name);
 				if (PredefinedUniform::Count == predefined && UniformType::End != UniformType::Enum(type) )
 				{
-					uniforms[sr.m_num] = createUniform(name, UniformType::Enum(type), regCount);
+					uniforms[sr.m_num] = createUniform(name, UniformType::Enum(type), regCount, UniformFreq::Submit);
 					sr.m_num++;
 				}
 			}
@@ -4756,7 +4794,7 @@ namespace bgfx
 			}
 		}
 
-		BGFX_API_FUNC(UniformHandle createUniform(const char* _name, UniformType::Enum _type, uint16_t _num) )
+		BGFX_API_FUNC(UniformHandle createUniform(const char* _name, UniformType::Enum _type, uint16_t _num, UniformFreq::Enum _freq) )
 		{
 			BGFX_MUTEX_SCOPE(m_resourceApiLock);
 
@@ -4792,6 +4830,7 @@ namespace bgfx
 					cmdbuf.write(handle);
 					cmdbuf.write(uniform.m_type);
 					cmdbuf.write(uniform.m_num);
+					cmdbuf.write(uniform.m_freq);
 					uint8_t len = (uint8_t)bx::strLen(_name)+1;
 					cmdbuf.write(len);
 					cmdbuf.write(_name, len);
@@ -4816,6 +4855,7 @@ namespace bgfx
 			uniform.m_refCount = 1;
 			uniform.m_type = _type;
 			uniform.m_num  = _num;
+			uniform.m_freq = _freq;
 
 			bool ok = m_uniformHashMap.insert(bx::hash<bx::HashMurmur2A>(_name), handle.idx);
 			BX_ASSERT(ok, "Uniform already exists (name: %s)!", _name); BX_UNUSED(ok);
@@ -4824,6 +4864,7 @@ namespace bgfx
 			cmdbuf.write(handle);
 			cmdbuf.write(_type);
 			cmdbuf.write(_num);
+			cmdbuf.write(_freq);
 			uint8_t len = (uint8_t)bx::strLen(_name)+1;
 			cmdbuf.write(len);
 			cmdbuf.write(_name, len);
@@ -5038,6 +5079,28 @@ namespace bgfx
 			{
 				bx::memCopy(&m_viewRemap[_id], _order, num*sizeof(ViewId) );
 			}
+		}
+
+		BGFX_API_FUNC(void setFrameUniform(UniformType::Enum _type, UniformHandle _handle, const void* _value, uint16_t _num))
+		{
+			UniformBuffer::update(&m_submit->m_frameUniforms);
+			UniformBuffer* uniformBuffer = m_submit->m_frameUniforms;
+			uniformBuffer->writeUniform(_type, _handle.idx, _value, _num);
+		}
+
+		BGFX_API_FUNC(void setViewUniform(ViewId _id, UniformType::Enum _type, UniformHandle _handle, const void* _value, uint16_t _num) )
+		{
+			UniformBuffer::update(&m_submit->m_viewUniforms);
+			UniformBuffer* uniformBuffer = m_submit->m_viewUniforms;
+
+			if (UINT32_MAX == m_view[_id].m_uniformBegin)
+			{
+				m_view[_id].m_uniformBegin = uniformBuffer->getPos();
+			}
+
+			uniformBuffer->writeUniform(_type, _handle.idx, _value, _num);
+
+			m_view[_id].m_uniformEnd = uniformBuffer->getPos();
 		}
 
 		BGFX_API_FUNC(Encoder* begin(bool _forThread) );

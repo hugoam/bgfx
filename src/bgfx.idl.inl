@@ -576,10 +576,10 @@ BGFX_C_API void bgfx_destroy_frame_buffer(bgfx_frame_buffer_handle_t _handle)
 	bgfx::destroy(handle.cpp);
 }
 
-BGFX_C_API bgfx_uniform_handle_t bgfx_create_uniform(const char* _name, bgfx_uniform_type_t _type, uint16_t _num)
+BGFX_C_API bgfx_uniform_handle_t bgfx_create_uniform(const char* _name, bgfx_uniform_type_t _type, uint16_t _num, bgfx_uniform_freq_t _freq)
 {
 	union { bgfx_uniform_handle_t c; bgfx::UniformHandle cpp; } handle_ret;
-	handle_ret.cpp = bgfx::createUniform(_name, (bgfx::UniformType::Enum)_type, _num);
+	handle_ret.cpp = bgfx::createUniform(_name, (bgfx::UniformType::Enum)_type, _num, (bgfx::UniformFreq::Enum)_freq);
 	return handle_ret.c;
 }
 
