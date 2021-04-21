@@ -3206,12 +3206,13 @@ namespace bgfx { namespace d3d11
 			return uav;
 		}
 
-		ID3D11ShaderResourceView* getCachedSrv(TextureHandle _handle, uint8_t _mip, bool _compute = false, bool _stencil = false)
+		ID3D11ShaderResourceView* getCachedSrv(TextureHandle _handle, uint8_t _mip, uint8_t _numMips, bool _compute = false, bool _stencil = false)
 		{
 			bx::HashMurmur2A murmur;
 			murmur.begin();
 			murmur.add(_handle);
 			murmur.add(_mip);
+			murmur.add(_numMips);
 			murmur.add(0);
 			murmur.add(_compute);
 			murmur.add(_stencil);
@@ -3238,7 +3239,7 @@ namespace bgfx { namespace d3d11
 							: D3D11_SRV_DIMENSION_TEXTURE2DARRAY
 							;
 						desc.Texture2DArray.MostDetailedMip = _mip;
-						desc.Texture2DArray.MipLevels       = 1;
+						desc.Texture2DArray.MipLevels       = _numMips;
 						desc.Texture2DArray.FirstArraySlice = 0;
 						desc.Texture2DArray.ArraySize       = texture.m_numLayers;
 					}
@@ -3249,7 +3250,7 @@ namespace bgfx { namespace d3d11
 							: D3D11_SRV_DIMENSION_TEXTURE2D
 							;
 						desc.Texture2D.MostDetailedMip = _mip;
-						desc.Texture2D.MipLevels       = 1;
+						desc.Texture2D.MipLevels       = _numMips;
 					}
 					break;
 
@@ -3258,7 +3259,7 @@ namespace bgfx { namespace d3d11
 					{
 						desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
 						desc.Texture2DArray.MostDetailedMip = _mip;
-						desc.Texture2DArray.MipLevels       = 1;
+						desc.Texture2DArray.MipLevels       = _numMips;
 						desc.Texture2DArray.FirstArraySlice = 0;
 						desc.Texture2DArray.ArraySize       = 6;
 					}
@@ -3266,14 +3267,14 @@ namespace bgfx { namespace d3d11
 					{
 						desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
 						desc.TextureCube.MostDetailedMip = _mip;
-						desc.TextureCube.MipLevels       = 1;
+						desc.TextureCube.MipLevels       = _numMips;
 					}
 					break;
 
 				case TextureD3D11::Texture3D:
 					desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE3D;
 					desc.Texture3D.MostDetailedMip = _mip;
-					desc.Texture3D.MipLevels       = 1;
+					desc.Texture3D.MipLevels       = _numMips;
 					break;
 				}
 
@@ -4834,6 +4835,7 @@ namespace bgfx { namespace d3d11
 			ts.m_srv[_stage] = s_renderD3D11->getCachedSrv(
 				  TextureHandle{ uint16_t(this - s_renderD3D11->m_textures) }
 				, 0
+				, 1
 				, false
 				, true
 				);
@@ -5814,7 +5816,8 @@ namespace bgfx { namespace d3d11
 									}
 									else
 									{
-										m_textureStage.m_srv[stage]     = s_renderD3D11->getCachedSrv(texture.getHandle(), bind.m_mip, true);
+										m_textureStage.m_srv[stage]   //= s_renderD3D11->getCachedSrv(texture.getHandle(), bind.m_mip, true);
+																		= s_renderD3D11->getCachedSrv(texture.getHandle(), 0, texture.m_numMips, true);
 										m_textureStage.m_sampler[stage] = s_renderD3D11->getSamplerState(uint32_t(texture.m_flags), NULL);
 									}
 								}
