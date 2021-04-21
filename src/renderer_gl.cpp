@@ -5166,7 +5166,7 @@ namespace bgfx { namespace gl
 
 	void ProgramGL::unbindAttributes()
 	{
-		for(uint32_t ii = 0, iiEnd = m_usedCount; ii < iiEnd; ++ii)
+		for (uint32_t ii = 0, iiEnd = m_usedCount; ii < iiEnd; ++ii)
 		{
 			if (Attrib::Count == m_unboundUsedAttrib[ii])
 			{
@@ -5192,7 +5192,7 @@ namespace bgfx { namespace gl
 
 	void ProgramGL::unbindInstanceData() const
 	{
-		for(uint32_t ii = 0; 0xffff != m_instanceData[ii]; ++ii)
+		for (uint32_t ii = 0; 0xffff != m_instanceData[ii]; ++ii)
 		{
 			GLint loc = m_instanceData[ii];
 			lazyDisableVertexAttribArray(loc);
@@ -6525,13 +6525,15 @@ namespace bgfx { namespace gl
 				char* temp = (char*)alloca(tempLen);
 				bx::StaticMemoryBlockWriter writer(temp, tempLen);
 
-				bx::write(&writer, "#version 430\n");
-				bx::write(&writer, "#define texture2DLod    textureLod\n");
-				bx::write(&writer, "#define texture3DLod    textureLod\n");
-				bx::write(&writer, "#define textureCubeLod  textureLod\n");
-				bx::write(&writer, "#define texture2DGrad   textureGrad\n");
-				bx::write(&writer, "#define texture3DGrad   textureGrad\n");
-				bx::write(&writer, "#define textureCubeGrad textureGrad\n");
+				bx::write(&writer
+					, "#version 430\n"
+				      "#define texture2DLod    textureLod\n"
+				      "#define texture3DLod    textureLod\n"
+				      "#define textureCubeLod  textureLod\n"
+				      "#define texture2DGrad   textureGrad\n"
+				      "#define texture3DGrad   textureGrad\n"
+				      "#define textureCubeGrad textureGrad\n"
+					);
 
 				int32_t verLen = bx::strLen("#version 430\n");
 				bx::write(&writer, code.getPtr() + verLen, codeLen - verLen);

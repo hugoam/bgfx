@@ -2369,7 +2369,7 @@ namespace bgfx { namespace d3d12
 		void commitShaderConstants(ProgramHandle _program, D3D12_GPU_VIRTUAL_ADDRESS& _gpuAddress)
 		{
 			const ProgramD3D12& program = m_program[_program.idx];
-			uint32_t total = bx::strideAlign(0
+			const uint32_t total = bx::strideAlign(0
 				+ program.m_vsh->m_size
 				+ (NULL != program.m_fsh ? program.m_fsh->m_size : 0)
 				, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT
@@ -2377,7 +2377,7 @@ namespace bgfx { namespace d3d12
 			uint8_t* data = (uint8_t*)m_scratchBuffer[m_backBufferColorIdx].allocCbv(_gpuAddress, total);
 
 			{
-				uint32_t size = program.m_vsh->m_size;
+				const uint32_t size = program.m_vsh->m_size;
 				bx::memCopy(data, m_vsScratch, size);
 				data += size;
 			}

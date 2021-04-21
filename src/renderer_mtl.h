@@ -956,7 +956,7 @@ namespace bgfx { namespace mtl
 			, m_depth(0)
 			, m_numMips(0)
 		{
-			for(uint32_t ii = 0; ii < BX_COUNTOF(m_ptrMips); ++ii)
+			for (uint32_t ii = 0; ii < BX_COUNTOF(m_ptrMips); ++ii)
 			{
 				m_ptrMips[ii] = NULL;
 			}
