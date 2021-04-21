@@ -1453,6 +1453,7 @@ namespace bgfx { namespace gl
 			bx::memSet(m_fbo, 0, sizeof(m_fbo) );
 		}
 
+		void set();
 		void create(uint8_t _num, const Attachment* _attachment);
 		void create(uint16_t _denseIdx, void* _nwh, uint32_t _width, uint32_t _height, TextureFormat::Enum _format, TextureFormat::Enum _depthFormat);
 		void postReset();
