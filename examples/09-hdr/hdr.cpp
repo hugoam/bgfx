@@ -8,6 +8,8 @@
 #include "imgui/imgui.h"
 #include <bx/rng.h>
 
+#define READBACK 0
+
 namespace
 {
 
@@ -207,7 +209,11 @@ public:
 		m_lumBgra8 = 0;
 		if ( (BGFX_CAPS_TEXTURE_BLIT|BGFX_CAPS_TEXTURE_READ_BACK) == (bgfx::getCaps()->supported & (BGFX_CAPS_TEXTURE_BLIT|BGFX_CAPS_TEXTURE_READ_BACK) ) )
 		{
+#if READBACK
+			m_rb = bgfx::createReadback(bgfx::getTexture(m_lum[4]));
+#else
 			m_rb = bgfx::createTexture2D(1, 1, false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_READ_BACK);
+#endif
 		}
 		else
 		{
@@ -312,11 +318,11 @@ public:
 
 				const uint64_t textureFlags = BGFX_TEXTURE_RT_WRITE_ONLY|(uint64_t(msaa+1)<<BGFX_TEXTURE_RT_MSAA_SHIFT);
 
-				bgfx::TextureFormat::Enum depthFormat =
-					  bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D16,   textureFlags) ? bgfx::TextureFormat::D16
-					: bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D24S8, textureFlags) ? bgfx::TextureFormat::D24S8
-					: bgfx::TextureFormat::D32
-					;
+				bgfx::TextureFormat::Enum depthFormat = bgfx::TextureFormat::D24S8;
+				//	  bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D16,   textureFlags) ? bgfx::TextureFormat::D16
+				//	: bgfx::isTextureValid(0, false, 1, bgfx::TextureFormat::D24S8, textureFlags) ? bgfx::TextureFormat::D24S8
+				//	: bgfx::TextureFormat::D32
+				//	;
 
 				m_fbtextures[1] = bgfx::createTexture2D(
 					  uint16_t(m_width)
@@ -598,7 +604,11 @@ public:
 	Mesh* m_mesh;
 
 	bgfx::TextureHandle m_fbtextures[2];
+#if READBACK
+	bgfx::ReadbackBufferHandle m_rb;
+#else
 	bgfx::TextureHandle m_rb;
+#endif
 	bgfx::FrameBufferHandle m_fbh;
 	bgfx::FrameBufferHandle m_lum[5];
 	bgfx::FrameBufferHandle m_bright;

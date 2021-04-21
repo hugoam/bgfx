@@ -130,7 +130,13 @@ public:
 
 		// Shadow samplers are supported at least partially supported if texture
 		// compare less equal feature is supported.
-		m_shadowSamplerSupported = 0 != (caps->supported & BGFX_CAPS_TEXTURE_COMPARE_LEQUAL);
+
+		if (bgfx::getRendererType() == bgfx::RendererType::WebGPU)
+			// Not supported yet, see Dawn -> Format::HasComponentType(wgpu::TextureComponentType componentType)
+			m_shadowSamplerSupported = false;
+		else
+			m_shadowSamplerSupported = 0 != (caps->supported & BGFX_CAPS_TEXTURE_COMPARE_LEQUAL);
+
 		m_useShadowSampler = m_shadowSamplerSupported;
 
 		m_shadowMapFB = BGFX_INVALID_HANDLE;
@@ -253,6 +259,7 @@ public:
 
 			if (!bgfx::isValid(m_shadowMapFB) || shadowSamplerModeChanged)
 			{
+				bgfx::TextureFormat::Enum depthFormat = bgfx::getRendererType() == bgfx::RendererType::WebGPU ? bgfx::TextureFormat::D24 : bgfx::TextureFormat::D16;
 				bgfx::TextureHandle shadowMapTexture;
 
 				if (bgfx::isValid(m_progShadow))
@@ -276,7 +283,7 @@ public:
 							, m_shadowMapSize
 							, false
 							, 1
-							, bgfx::TextureFormat::D16
+							, depthFormat
 							, BGFX_TEXTURE_RT | BGFX_SAMPLER_COMPARE_LEQUAL
 							),
 					};
@@ -305,7 +312,7 @@ public:
 							, m_shadowMapSize
 							, false
 							, 1
-							, bgfx::TextureFormat::D16
+							, depthFormat
 							, BGFX_TEXTURE_RT_WRITE_ONLY
 							),
 					};

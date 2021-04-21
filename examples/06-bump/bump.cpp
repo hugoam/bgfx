@@ -153,10 +153,16 @@ public:
 		m_program = loadProgram(m_instancingSupported ? "vs_bump_instanced" : "vs_bump", "fs_bump");
 
 		// Load diffuse texture.
-		m_textureColor = loadTexture("textures/fieldstone-rgba.dds");
+		if (bgfx::getRendererType() == bgfx::RendererType::WebGPU)
+			m_textureColor = loadTexture("textures/fieldstone-rgba.png");
+		else
+			m_textureColor = loadTexture("textures/fieldstone-rgba.dds");
 
 		// Load normal texture.
-		m_textureNormal = loadTexture("textures/fieldstone-n.dds");
+		if (bgfx::getRendererType() == bgfx::RendererType::WebGPU)
+			m_textureNormal = loadTexture("textures/fieldstone-n.png");
+		else
+			m_textureNormal = loadTexture("textures/fieldstone-n.dds");
 
 		m_timeOffset = bx::getHPCounter();
 

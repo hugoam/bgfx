@@ -16,6 +16,8 @@
 #include <bx/file.h>
 #include <bx/sort.h>
 
+#include <cstdio>
+
 #include "vt.h"
 
 namespace vt

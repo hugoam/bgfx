@@ -9,6 +9,8 @@
 #include <bx/rng.h>
 #include <map>
 
+#define READBACK 0
+
 namespace
 {
 
@@ -133,6 +135,9 @@ public:
 			| BGFX_SAMPLER_V_CLAMP
 			);
 
+#if READBACK
+		m_readback = bgfx::createReadback(m_pickingRT);
+#else
 		// CPU texture for blitting to and reading ID buffer so we can see what was clicked on.
 		// Impossible to read directly from a render target, you *must* blit to a CPU texture
 		// first. Algorithm Overview: Render on GPU -> Blit to CPU texture -> Read from CPU
@@ -146,6 +151,7 @@ public:
 			| BGFX_SAMPLER_U_CLAMP
 			| BGFX_SAMPLER_V_CLAMP
 			);
+#endif
 
 		bgfx::TextureHandle rt[2] =
 		{
@@ -174,7 +180,11 @@ public:
 		bgfx::destroy(m_pickingFB);
 		bgfx::destroy(m_pickingRT);
 		bgfx::destroy(m_pickingRTDepth);
+#if READBACK
+		bgfx::destroy(m_readback);
+#else
 		bgfx::destroy(m_blitTex);
+#endif
 
 		imguiDestroy();
 
@@ -389,9 +399,13 @@ public:
 				if (!m_reading
 				&&  m_mouseState.m_buttons[entry::MouseButton::Left])
 				{
+#if READBACK
+					m_reading = bgfx::readback(m_readback, m_blitData);
+#else
 					// Blit and read
 					bgfx::blit(RENDER_PASS_BLIT, m_blitTex, 0, 0, m_pickingRT);
 					m_reading = bgfx::readTexture(m_blitTex, m_blitData);
+#endif
 				}
 			}
 
@@ -428,7 +442,11 @@ public:
 	bgfx::UniformHandle u_id;
 	bgfx::TextureHandle m_pickingRT;
 	bgfx::TextureHandle m_pickingRTDepth;
+#if READBACK
+	bgfx::ReadbackBufferHandle m_readback;
+#else
 	bgfx::TextureHandle m_blitTex;
+#endif
 	bgfx::FrameBufferHandle m_pickingFB;
 
 	uint8_t m_blitData[ID_DIM*ID_DIM * 4]; // Read blit into this

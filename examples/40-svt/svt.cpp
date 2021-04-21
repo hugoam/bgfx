@@ -317,14 +317,6 @@ public:
 					if (i == 0)
 					{
 						bgfx::submit(i, m_vt_mip);
-						// Download previous frame feedback info
-						m_feedbackBuffer->download();
-						// Update and upload new requests
-						m_vt->update(m_feedbackBuffer->getRequests(), 4);
-						// Clear feedback
-						m_feedbackBuffer->clear();
-						// Copy new frame feedback buffer
-						m_feedbackBuffer->copy(3);
 					}
 					else
 					{
@@ -332,6 +324,15 @@ public:
 						bgfx::submit(i, m_vt_unlit);
 					}
 				}
+
+				// Download previous frame feedback info
+				m_feedbackBuffer->download();
+				// Update and upload new requests
+				m_vt->update(m_feedbackBuffer->getRequests(), 4);
+				// Clear feedback
+				m_feedbackBuffer->clear();
+				// Copy new frame feedback buffer
+				m_feedbackBuffer->copy(3);
 			}
 
 			imguiEndFrame();

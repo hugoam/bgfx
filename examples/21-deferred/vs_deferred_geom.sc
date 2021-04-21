@@ -1,5 +1,5 @@
 $input a_position, a_normal, a_tangent, a_texcoord0
-$output v_wpos, v_view, v_normal, v_tangent, v_bitangent, v_texcoord0
+$output v_position, v_wpos, v_view, v_normal, v_tangent, v_bitangent, v_texcoord0
 
 /*
  * Copyright 2011-2021 Branimir Karadzic. All rights reserved.
@@ -12,6 +12,7 @@ void main()
 {
 	vec3 wpos = mul(u_model[0], vec4(a_position, 1.0) ).xyz;
 	gl_Position = mul(u_viewProj, vec4(wpos, 1.0) );
+	v_position = gl_Position;
 	
 	vec4 normal = a_normal * 2.0 - 1.0;
 	vec3 wnormal = mul(u_model[0], vec4(normal.xyz, 0.0) ).xyz;

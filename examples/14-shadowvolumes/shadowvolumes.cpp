@@ -1804,10 +1804,11 @@ public:
 		m_flareTex      = loadTexture("textures/flare.dds");
 		m_fieldstoneTex = loadTexture("textures/fieldstone-rgba.dds");
 
+		bgfx::TextureFormat::Enum depthFormat = bgfx::getRendererType() == bgfx::RendererType::WebGPU ? bgfx::TextureFormat::D24 : bgfx::TextureFormat::D16;
 		bgfx::TextureHandle fbtextures[] =
 		{
 			bgfx::createTexture2D(uint16_t(m_viewState.m_width), uint16_t(m_viewState.m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP | BGFX_TEXTURE_RT),
-			bgfx::createTexture2D(uint16_t(m_viewState.m_width), uint16_t(m_viewState.m_height), false, 1, bgfx::TextureFormat::D16,   BGFX_TEXTURE_RT_WRITE_ONLY),
+			bgfx::createTexture2D(uint16_t(m_viewState.m_width), uint16_t(m_viewState.m_height), false, 1, depthFormat, BGFX_TEXTURE_RT_WRITE_ONLY),
 		};
 
 		s_stencilFb  = bgfx::createFrameBuffer(BX_COUNTOF(fbtextures), fbtextures, true);
@@ -2010,7 +2011,8 @@ public:
 				bgfx::TextureHandle fbtextures[] =
 				{
 					bgfx::createTexture2D(uint16_t(m_viewState.m_width), uint16_t(m_viewState.m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_SAMPLER_U_CLAMP|BGFX_SAMPLER_V_CLAMP|BGFX_TEXTURE_RT),
-					bgfx::createTexture2D(uint16_t(m_viewState.m_width), uint16_t(m_viewState.m_height), false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_WRITE_ONLY)
+					//bgfx::createTexture2D(uint16_t(m_viewState.m_width), uint16_t(m_viewState.m_height), false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_WRITE_ONLY)
+					bgfx::createTexture2D(uint16_t(m_viewState.m_width), uint16_t(m_viewState.m_height), false, 1, bgfx::TextureFormat::D24, BGFX_TEXTURE_RT_WRITE_ONLY)
 				};
 				s_stencilFb = bgfx::createFrameBuffer(BX_COUNTOF(fbtextures), fbtextures, true);
 			}

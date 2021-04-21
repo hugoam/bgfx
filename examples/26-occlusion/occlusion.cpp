@@ -192,7 +192,12 @@ public:
 
 			imguiEndFrame();
 
-			if (m_occlusionQuerySupported)
+			if (!m_occlusionQuerySupported)
+			{
+				bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+				bgfx::touch(0);
+			}
+			else
 			{
 				int64_t now = bx::getHPCounter();
 				static int64_t last = now;

@@ -9,6 +9,13 @@
 #include "camera.h"
 #include <bgfx/bgfx.h>
 
+#define INDIRECT_DISPATCH 1
+
+#define VIEW_INIT 0
+#define VIEW_INDIRECT 1
+#define VIEW_UPDATE 2
+#define VIEW_DRAW 3
+
 namespace
 {
 
@@ -139,7 +146,7 @@ public:
 		bgfx::setDebug(m_debug);
 
 		// Set view 0 clear state.
-		bgfx::setViewClear(0
+		bgfx::setViewClear(VIEW_DRAW
 			, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
 			, 0x303030ff
 			, 1.0f
@@ -197,7 +204,7 @@ public:
 			if (m_indirectSupported)
 			{
 				m_indirectProgram = bgfx::createProgram(loadShader("cs_indirect"), true);
-				m_indirectBuffer  = bgfx::createIndirectBuffer(2);
+				m_indirectBuffer  = bgfx::createIndirectBuffer(INDIRECT_DISPATCH ? 2 : 1);
 			}
 
 			initializeParams(0, &m_paramsData);
@@ -205,13 +212,13 @@ public:
 			bgfx::setUniform(u_params, &m_paramsData, 3);
 			bgfx::setBuffer(0, m_prevPositionBuffer0, bgfx::Access::Write);
 			bgfx::setBuffer(1, m_currPositionBuffer0, bgfx::Access::Write);
-			bgfx::dispatch(0, m_initInstancesProgram, kMaxParticleCount / kThreadGroupUpdateSize, 1, 1);
+			bgfx::dispatch(VIEW_INIT, m_initInstancesProgram, kMaxParticleCount / kThreadGroupUpdateSize, 1, 1);
 
 			cameraCreate();
 			cameraSetPosition({ 0.0f, 0.0f, -45.0f });
 			cameraSetVerticalAngle(0.0f);
 
-			m_useIndirect = false;
+			//m_useIndirect = false;
 
 			m_timeOffset = bx::getHPCounter();
 		}
@@ -339,14 +346,14 @@ public:
 					bgfx::setBuffer(0, m_prevPositionBuffer0, bgfx::Access::Write);
 					bgfx::setBuffer(1, m_currPositionBuffer0, bgfx::Access::Write);
 					bgfx::setUniform(u_params, &m_paramsData, 3);
-					bgfx::dispatch(0, m_initInstancesProgram, kMaxParticleCount / kThreadGroupUpdateSize, 1, 1);
+					bgfx::dispatch(VIEW_INIT, m_initInstancesProgram, kMaxParticleCount / kThreadGroupUpdateSize, 1, 1);
 				}
 
 				if (m_useIndirect)
 				{
 					bgfx::setUniform(u_params, &m_paramsData, 3);
 					bgfx::setBuffer(0, m_indirectBuffer, bgfx::Access::Write);
-					bgfx::dispatch(0, m_indirectProgram);
+					bgfx::dispatch(VIEW_INDIRECT, m_indirectProgram);
 				}
 
 				bgfx::setBuffer(0, m_prevPositionBuffer0, bgfx::Access::Read);
@@ -355,13 +362,15 @@ public:
 				bgfx::setBuffer(3, m_currPositionBuffer1, bgfx::Access::Write);
 				bgfx::setUniform(u_params, &m_paramsData, 3);
 
+#if INDIRECT_DISPATCH
 				if (m_useIndirect)
 				{
-					bgfx::dispatch(0, m_updateInstancesProgram, m_indirectBuffer, 1);
+					bgfx::dispatch(VIEW_UPDATE, m_updateInstancesProgram, m_indirectBuffer, 1);
 				}
 				else
+#endif
 				{
-					bgfx::dispatch(0, m_updateInstancesProgram, uint16_t(m_paramsData.dispatchSize), 1, 1);
+					bgfx::dispatch(VIEW_UPDATE, m_updateInstancesProgram, uint16_t(m_paramsData.dispatchSize), 1, 1);
 				}
 
 				bx::swap(m_currPositionBuffer0, m_currPositionBuffer1);
@@ -384,10 +393,10 @@ public:
 						, 10000.0f
 						, bgfx::getCaps()->homogeneousDepth
 						);
-					bgfx::setViewTransform(0, view, proj);
+					bgfx::setViewTransform(VIEW_DRAW, view, proj);
 
 					// Set view 0 default viewport.
-					bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
+					bgfx::setViewRect(VIEW_DRAW, 0, 0, uint16_t(m_width), uint16_t(m_height) );
 				}
 
 				// Set vertex and index buffer.
@@ -408,11 +417,11 @@ public:
 				// Submit primitive for rendering to view 0.
 				if (m_useIndirect)
 				{
-					bgfx::submit(0, m_particleProgram, m_indirectBuffer, 0);
+					bgfx::submit(VIEW_DRAW, m_particleProgram, m_indirectBuffer, 0);
 				}
 				else
 				{
-					bgfx::submit(0, m_particleProgram);
+					bgfx::submit(VIEW_DRAW, m_particleProgram);
 				}
 			}
 

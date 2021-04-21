@@ -9,6 +9,13 @@
 #include "camera.h"
 #include "bounds.h"
 
+#define PACK_DEPTH false //(bgfx::getRendererType() == bgfx::RendererType::WebGPU)
+
+#define GBUFFER_ALBEDO 0
+#define GBUFFER_NORMAL 1
+#define GBUFFER_DEPTH 2
+#define DEPTH_BUFFER (PACK_DEPTH ? 3 : 2)
+
 namespace
 {
 
@@ -277,8 +284,17 @@ public:
 		u_lightRgbInnerR = bgfx::createUniform("u_lightRgbInnerR", bgfx::UniformType::Vec4);
 
 		// Create program from shaders.
-		m_geomProgram    = loadProgram("vs_deferred_geom",       "fs_deferred_geom");
-		m_lightProgram   = loadProgram("vs_deferred_light",      "fs_deferred_light");
+		if (PACK_DEPTH)
+		{
+			m_geomProgram  = loadProgram("vs_deferred_geom",  "fs_deferred_geom_depthpacked");
+			m_lightProgram = loadProgram("vs_deferred_light", "fs_deferred_light_depthpacked");
+		}
+		else
+		{
+			m_geomProgram  = loadProgram("vs_deferred_geom",  "fs_deferred_geom");
+			m_lightProgram = loadProgram("vs_deferred_light", "fs_deferred_light");
+		}
+
 		m_combineProgram = loadProgram("vs_deferred_combine",    "fs_deferred_combine");
 		m_debugProgram   = loadProgram("vs_deferred_debug",      "fs_deferred_debug");
 		m_lineProgram    = loadProgram("vs_deferred_debug_line", "fs_deferred_debug_line");
@@ -316,9 +332,10 @@ public:
 
 		m_lightBufferTex.idx = bgfx::kInvalidHandle;
 
-		m_gbufferTex[0].idx = bgfx::kInvalidHandle;
-		m_gbufferTex[1].idx = bgfx::kInvalidHandle;
-		m_gbufferTex[2].idx = bgfx::kInvalidHandle;
+		m_gbufferTex[GBUFFER_ALBEDO].idx = bgfx::kInvalidHandle;
+		m_gbufferTex[GBUFFER_NORMAL].idx = bgfx::kInvalidHandle;
+		m_gbufferTex[GBUFFER_DEPTH].idx  = bgfx::kInvalidHandle;
+		m_gbufferTex[DEPTH_BUFFER].idx   = bgfx::kInvalidHandle;
 		m_gbuffer.idx       = bgfx::kInvalidHandle;
 		m_lightBuffer.idx   = bgfx::kInvalidHandle;
 
@@ -506,9 +523,10 @@ public:
 					if (bgfx::isValid(m_gbuffer) )
 					{
 						bgfx::destroy(m_gbuffer);
-						m_gbufferTex[0].idx = bgfx::kInvalidHandle;
-						m_gbufferTex[1].idx = bgfx::kInvalidHandle;
-						m_gbufferTex[2].idx = bgfx::kInvalidHandle;
+						m_gbufferTex[GBUFFER_ALBEDO].idx = bgfx::kInvalidHandle;
+						m_gbufferTex[GBUFFER_NORMAL].idx = bgfx::kInvalidHandle;
+						m_gbufferTex[GBUFFER_DEPTH].idx  = bgfx::kInvalidHandle;
+						m_gbufferTex[DEPTH_BUFFER].idx   = bgfx::kInvalidHandle;
 					}
 
 					const uint64_t tsFlags = 0
@@ -519,20 +537,27 @@ public:
 						| BGFX_SAMPLER_V_CLAMP
 						;
 
-					bgfx::Attachment gbufferAt[3];
+					bgfx::Attachment gbufferAt[4];
 
 					if (m_useTArray)
 					{
-						m_gbufferTex[0] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 2, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
-						gbufferAt[0].init(m_gbufferTex[0], bgfx::Access::Write, 0);
-						gbufferAt[1].init(m_gbufferTex[0], bgfx::Access::Write, 1);
+						m_gbufferTex[0] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, DEPTH_BUFFER, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
+						gbufferAt[GBUFFER_ALBEDO].init(m_gbufferTex[0], bgfx::Access::Write, GBUFFER_ALBEDO);
+						gbufferAt[GBUFFER_NORMAL].init(m_gbufferTex[0], bgfx::Access::Write, GBUFFER_NORMAL);
+						if (PACK_DEPTH)
+							gbufferAt[GBUFFER_DEPTH].init(m_gbufferTex[0], bgfx::Access::Write, GBUFFER_DEPTH);
 					}
 					else
 					{
-						m_gbufferTex[0] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
-						m_gbufferTex[1] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
-						gbufferAt[0].init(m_gbufferTex[0]);
-						gbufferAt[1].init(m_gbufferTex[1]);
+						m_gbufferTex[GBUFFER_ALBEDO] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
+						m_gbufferTex[GBUFFER_NORMAL] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
+						if (PACK_DEPTH)
+							m_gbufferTex[GBUFFER_DEPTH] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
+
+						gbufferAt[GBUFFER_ALBEDO].init(m_gbufferTex[GBUFFER_ALBEDO]);
+						gbufferAt[GBUFFER_NORMAL].init(m_gbufferTex[GBUFFER_NORMAL]);
+						if (PACK_DEPTH)
+							gbufferAt[GBUFFER_DEPTH].init(m_gbufferTex[GBUFFER_DEPTH]);
 					}
 
 					bgfx::TextureFormat::Enum depthFormat =
@@ -541,10 +566,10 @@ public:
 						: bgfx::TextureFormat::D24
 						;
 
-					m_gbufferTex[2] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, depthFormat, BGFX_TEXTURE_RT | tsFlags);
-					gbufferAt[2].init(m_gbufferTex[2]);
+					m_gbufferTex[DEPTH_BUFFER] = bgfx::createTexture2D(uint16_t(m_width), uint16_t(m_height), false, 1, depthFormat, BGFX_TEXTURE_RT | tsFlags);
+					gbufferAt[DEPTH_BUFFER].init(m_gbufferTex[DEPTH_BUFFER]);
 
-					m_gbuffer = bgfx::createFrameBuffer(BX_COUNTOF(gbufferAt), gbufferAt, true);
+					m_gbuffer = bgfx::createFrameBuffer(PACK_DEPTH ? 4 : 3, gbufferAt, true);
 
 					if (bgfx::isValid(m_lightBuffer) )
 					{
@@ -789,8 +814,8 @@ public:
 						bgfx::setUniform(u_mtx, invMvp);
 						const uint16_t scissorHeight = uint16_t(y1-y0);
 						bgfx::setScissor(uint16_t(x0), uint16_t(m_height-scissorHeight-y0), uint16_t(x1-x0), uint16_t(scissorHeight) );
-						bgfx::setTexture(0, s_normal, bgfx::getTexture(m_gbuffer, 1) );
-						bgfx::setTexture(1, s_depth,  bgfx::getTexture(m_gbuffer, 2) );
+						bgfx::setTexture(0, s_normal, bgfx::getTexture(m_gbuffer, GBUFFER_NORMAL) );
+						bgfx::setTexture(1, s_depth,  bgfx::getTexture(m_gbuffer, GBUFFER_DEPTH) );
 						bgfx::setState(0
 							| BGFX_STATE_WRITE_RGB
 							| BGFX_STATE_WRITE_A
@@ -819,7 +844,7 @@ public:
 				}
 
 				// Combine color and light buffers.
-				bgfx::setTexture(0, s_albedo, m_gbufferTex[0]);
+				bgfx::setTexture(0, s_albedo, m_gbufferTex[GBUFFER_ALBEDO]);
 				bgfx::setTexture(1, s_light,  m_lightBufferTex);
 				bgfx::setState(0
 					| BGFX_STATE_WRITE_RGB
@@ -833,7 +858,8 @@ public:
 					const float aspectRatio = float(m_width)/float(m_height);
 
 					// Draw m_debug m_gbuffer.
-					for (uint32_t ii = 0; ii < BX_COUNTOF(m_gbufferTex); ++ii)
+					const uint32_t numTex = 3; // BX_COUNTOF(m_gbufferTex)
+					for (uint32_t ii = 0; ii < numTex; ++ii)
 					{
 						float mtx[16];
 						bx::mtxSRT(mtx
@@ -889,7 +915,7 @@ public:
 	bgfx::TextureHandle m_textureColor;
 	bgfx::TextureHandle m_textureNormal;
 
-	bgfx::TextureHandle m_gbufferTex[3];
+	bgfx::TextureHandle m_gbufferTex[4];
 	bgfx::TextureHandle m_lightBufferTex;
 	bgfx::FrameBufferHandle m_gbuffer;
 	bgfx::FrameBufferHandle m_lightBuffer;
