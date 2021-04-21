@@ -1984,6 +1984,18 @@ namespace bgfx
 			m_fbh = _handle;
 		}
 
+		//void setImage(uint8_t _stage, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
+		//{
+		//	Binding& bind = m_bind.m_bind[_stage];
+		//	bind.m_idx = _handle.idx;
+		//	bind.m_type = uint8_t(Binding::Image);
+		//	bind.m_format = uint8_t(_format);
+		//	bind.m_access = uint8_t(_access);
+		//	bind.m_mip = _mip;
+		//
+		//	m_has_bind = true;
+		//}
+
 		void setTransform(const void* _view, const void* _proj)
 		{
 			if (NULL != _view)
@@ -2639,6 +2651,17 @@ namespace bgfx
 			bind.m_format = uint8_t(_format);
 			bind.m_access = uint8_t(_access);
 			bind.m_mip    = _mip;
+		}
+		
+		void setImage(uint8_t _stage, UniformHandle _sampler, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
+		{
+			setImage(_stage, _handle, _mip, _access, _format);
+
+			if (isValid(_sampler) )
+			{
+				uint32_t stage = _stage;
+				setUniform(UniformType::Sampler, _sampler, &stage, 1);
+			}
 		}
 
 		void discard(uint8_t _flags)
@@ -4961,7 +4984,7 @@ namespace bgfx
 		{
 			m_view[_id].setTransform(_view, _proj);
 		}
-
+		
 		BGFX_API_FUNC(void resetView(ViewId _id) )
 		{
 			m_view[_id].reset();

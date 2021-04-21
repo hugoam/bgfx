@@ -2577,20 +2577,27 @@ namespace bgfx { namespace d3d11
 				m_currentColor        = m_backBufferColor;
 				m_currentDepthStencil = m_backBufferDepthStencil;
 
-				m_deviceCtx->OMSetRenderTargetsAndUnorderedAccessViews(
-					  1
-					, &m_currentColor
-					, m_currentDepthStencil
-					, 1
-					, 0
-					, NULL
-					, NULL
-					);
+				const uint32_t maxTextureSamplers = g_caps.limits.maxTextureSamplers;
+
+				if(true)
+					m_deviceCtx->OMSetRenderTargets(1, &m_currentColor, m_currentDepthStencil);
+				else
+					m_deviceCtx->OMSetRenderTargetsAndUnorderedAccessViews(
+						  1
+						, &m_currentColor
+						, m_currentDepthStencil
+						, 1
+						, maxTextureSamplers
+						, m_textureStage.m_uav
+						, NULL
+						);
+
 				m_needPresent |= _needPresent;
 			}
 			else
 			{
-				invalidateTextureStage();
+				m_textureStage.clear();
+				commitTextureStage();
 
 				FrameBufferD3D11& frameBuffer = m_frameBuffers[_fbh.idx];
 				frameBuffer.set();
@@ -5003,6 +5010,8 @@ namespace bgfx { namespace d3d11
 						}
 					}
 
+					const bool computeWrite = 0 != (texture.m_flags&BGFX_TEXTURE_COMPUTE_WRITE);
+					const bool renderTarget = 0 != (texture.m_flags&BGFX_TEXTURE_RT_MASK);
 					const uint32_t msaaQuality = bx::uint32_satsub( (texture.m_flags&BGFX_TEXTURE_RT_MSAA_MASK)>>BGFX_TEXTURE_RT_MSAA_SHIFT, 1);
 					const DXGI_SAMPLE_DESC& msaa = s_msaa[msaaQuality];
 
@@ -5152,9 +5161,17 @@ namespace bgfx { namespace d3d11
 						DX_CHECK(s_renderD3D11->m_device->CreateShaderResourceView(texture.m_ptr, &srvDesc, &m_srv[m_num]));
 						m_num++;
 					}
+//<<<<<<< HEAD
 					else
 					{
 						m_uav[m_numUav++] = texture.m_uav;
+//=======
+//					else if(computeWrite)
+//					{
+//						m_uav[m_num + m_numUav] = texture.m_uav;
+//						//s_renderD3D11->getCachedUav(texture, m_attachment[ii].mip);
+//						m_numUav++;
+//>>>>>>> 0c9568f8a... Framebuffer Image binding support
 					}
 				}
 			}
@@ -5650,6 +5667,12 @@ namespace bgfx { namespace d3d11
 						profiler.end();
 					}
 
+					if (_render->m_view[view].m_fbh.idx != fbh.idx)
+					{
+						fbh = _render->m_view[view].m_fbh;
+						setFrameBuffer(fbh);
+					}
+
 					BGFX_D3D11_PROFILER_END();
 					setViewType(view, "  ");
 					BGFX_D3D11_PROFILER_BEGIN(view, kColorView);
@@ -5842,6 +5865,21 @@ namespace bgfx { namespace d3d11
 						deviceCtx->Dispatch(compute.m_numX, compute.m_numY, compute.m_numZ);
 					}
 
+					
+					for (uint32_t ii = 0; ii < maxComputeBindings; ++ii)
+					{
+						const Binding& bind = renderBind.m_bind[ii];
+						if (kInvalidHandle != bind.m_idx
+						&&  Binding::Image == bind.m_type)
+						{
+							TextureD3D11& texture = m_textures[bind.m_idx];
+							if (Access::ReadWrite == bind.m_access
+							||  Access::Write     == bind.m_access)
+							{
+								texture.resolve(BGFX_RESOLVE_AUTO_GEN_MIPS);
+							}
+						}
+					}
 					continue;
 				}
 
@@ -6101,6 +6139,8 @@ namespace bgfx { namespace d3d11
 										{
 											m_textureStage.m_srv[stage]     = s_renderD3D11->getCachedSrv(texture.getHandle(), bind.m_mip, true);
 											m_textureStage.m_sampler[stage] = s_renderD3D11->getSamplerState(uint32_t(texture.m_flags), NULL);
+
+											//texture.commit(stage, bind.m_samplerFlags, _render->m_colorPalette);
 										}
 									}
 									break;

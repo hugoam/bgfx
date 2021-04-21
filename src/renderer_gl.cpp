@@ -5184,6 +5184,7 @@ namespace bgfx { namespace gl
 		m_currentSamplerHash = UINT32_MAX;
 
 		const bool writeOnly    = 0 != (m_flags&BGFX_TEXTURE_RT_WRITE_ONLY);
+		const bool renderTarget = 0 != (m_flags&BGFX_TEXTURE_RT_MASK);
 		const bool computeWrite = 0 != (m_flags&BGFX_TEXTURE_COMPUTE_WRITE );
 		const bool srgb         = 0 != (m_flags&BGFX_TEXTURE_SRGB);
 		const bool textureArray = false
@@ -5275,8 +5276,6 @@ namespace bgfx { namespace gl
 				GL_CHECK(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask) );
 			}
 		}
-
-		const bool renderTarget = 0 != (m_flags&BGFX_TEXTURE_RT_MASK);
 
 		if (renderTarget)
 		{
@@ -6539,6 +6538,9 @@ namespace bgfx { namespace gl
 	{
 		if (0 != m_fbo[0])
 		{
+			m_num = 0;
+			m_numCompute = 0;
+
 			GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, m_fbo[0]) );
 
 			bool needResolve = false;
@@ -6553,6 +6555,9 @@ namespace bgfx { namespace gl
 				if (isValid(at.handle) )
 				{
 					const TextureGL& texture = s_renderGL->m_textures[at.handle.idx];
+
+					const bool renderTarget = 0 != (texture.m_flags&BGFX_TEXTURE_RT_MASK);
+					const bool computeWrite = 0 != (texture.m_flags&BGFX_TEXTURE_COMPUTE_WRITE);
 
 					if (0 == colorIdx)
 					{
@@ -6582,6 +6587,10 @@ namespace bgfx { namespace gl
 					{
 						buffers[colorIdx] = attachment;
 						++colorIdx;
+					}
+					else if (computeWrite)
+					{
+						m_numCompute++;
 					}
 
 					if (0 != texture.m_rbo)
@@ -6875,6 +6884,36 @@ namespace bgfx { namespace gl
 		}
 
 		GL_CHECK(glInvalidateFramebuffer(GL_FRAMEBUFFER, idx, buffers) );
+	}
+
+	void FrameBufferGL::set()
+	{
+		for (uint32_t ii = 0; ii < m_numTh; ++ii)
+		{
+			const Attachment& at = m_attachment[ii];
+
+			if (at.access == Access::Write)
+			{
+				continue;
+			}
+
+			if (isValid(at.handle) )
+			{
+				const TextureGL& texture = s_renderGL->m_textures[at.handle.idx];
+
+				if (0 != (texture.m_flags&BGFX_TEXTURE_COMPUTE_WRITE) )
+				{
+					GL_CHECK(glBindImageTexture(ii
+						, texture.m_id
+						, at.mip
+						, GL_FALSE //texture.isLayered() ? GL_TRUE : GL_FALSE
+						, at.layer
+						, s_access[Access::ReadWrite]
+						, s_imageFormat[texture.m_textureFormat])
+						);
+				}
+			}
+		}
 	}
 
 	void OcclusionQueryGL::create()
@@ -7270,13 +7309,47 @@ namespace bgfx { namespace gl
 										const TextureGL& texture = m_textures[bind.m_idx];
 										GL_CHECK(glBindImageTexture(ii
 											, texture.m_id
+//<<<<<<< HEAD
+//											, bind.m_mip
+//											, texture.isCubeMap() || texture.m_target == GL_TEXTURE_2D_ARRAY ? GL_TRUE : GL_FALSE
+//											, 0
+//											, s_access[bind.m_access]
+//											, s_imageFormat[bind.m_format])
+//											);
+//										barrier |= GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
+////=======
+////										if (Access::Read == bind.m_un.m_compute.m_access)
+////										{
+////											TextureGL& texture = m_textures[bind.m_idx];
+////											texture.commit(ii, uint32_t(texture.m_flags), _render->m_colorPalette);
+////										}
+////										else
+////										{
+////											const TextureGL& texture = m_textures[bind.m_idx];
+////											GL_CHECK(glBindImageTexture(ii
+////												, texture.m_id
+////												, bind.m_mip
+////												, texture.isLayered() ? GL_TRUE : GL_FALSE
+////												, 0
+////												, s_access[bind.m_access]
+////												, s_imageFormat[bind.m_format])
+////												);
+////											barrier |= GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
+////										}
+////>>>>>>> 0c9568f8a... Framebuffer Image binding support
+//=======
 											, bind.m_mip
-											, texture.isCubeMap() || texture.m_target == GL_TEXTURE_2D_ARRAY ? GL_TRUE : GL_FALSE
+											, texture.isLayered() ? GL_TRUE : GL_FALSE
 											, 0
 											, s_access[bind.m_access]
 											, s_imageFormat[bind.m_format])
 											);
-										barrier |= GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
+
+										if (Access::Read != bind.m_access)
+										{
+											barrier |= GL_SHADER_IMAGE_ACCESS_BARRIER_BIT;
+										}
+//>>>>>>> 0dce717d4... Fix read-only images
 									}
 									break;
 
@@ -7346,6 +7419,21 @@ namespace bgfx { namespace gl
 							}
 
 							GL_CHECK(glMemoryBarrier(barrier) );
+
+							for (uint32_t ii = 0; ii < maxComputeBindings; ++ii)
+							{
+								const Binding& bind = renderBind.m_bind[ii];
+								if (kInvalidHandle != bind.m_idx
+								&&  Binding::Image == bind.m_type)
+								{
+									TextureGL& texture = m_textures[bind.m_idx];
+									if (Access::ReadWrite == bind.m_access
+									||  Access::Write     == bind.m_access)
+									{
+										texture.resolve(BGFX_RESOLVE_AUTO_GEN_MIPS);
+									}
+								}
+							}
 						}
 					}
 

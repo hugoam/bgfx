@@ -1026,7 +1026,7 @@ namespace bgfx
 		_parse = bx::strLTrimSpace(bx::StringView(word.getTerm(), _parse.getTerm() ) );
 		return word;
 	}
-
+	
 	bool compileShader(const char* _varying, const char* _comment, char* _shader, uint32_t _shaderLen, Options& _options, bx::FileWriter* _writer)
 	{
 		uint32_t profile_id = 0;

@@ -1575,6 +1575,26 @@ namespace bgfx
 			, TextureFormat::Enum _format = TextureFormat::Count
 			);
 
+		/// Set compute image from texture.
+		///
+		/// @param[in] _stage Texture unit.
+		/// @param[in] _sampler Image uniform.
+		/// @param[in] _handle Texture handle.
+		/// @param[in] _mip Mip level.
+		/// @param[in] _access Texture access. See `Access::Enum`.
+		/// @param[in] _format Texture format. See: `TextureFormat::Enum`.
+		///
+		/// @attention C99 equivalent is `bgfx_set_image`.
+		///
+		void setImage(
+			  uint8_t _stage
+			, UniformHandle _uniform
+			, TextureHandle _handle
+			, uint8_t _mip
+			, Access::Enum _access
+			, TextureFormat::Enum _format = TextureFormat::Count
+			);
+
 		/// Dispatch compute.
 		///
 		/// @param[in] _id View id.
