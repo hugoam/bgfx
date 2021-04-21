@@ -1205,7 +1205,7 @@ namespace bgfx { namespace d3d9
 			}
 		}
 
-		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name) override
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) override
 		{
 			if (NULL != m_uniforms[_handle.idx])
 			{
@@ -1216,7 +1216,7 @@ namespace bgfx { namespace d3d9
 			void* data = BX_ALLOC(g_allocator, size);
 			bx::memSet(data, 0, size);
 			m_uniforms[_handle.idx] = data;
-			m_uniformReg.add(_handle, _name);
+			m_uniformReg.add(_handle, _name, _freq);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
@@ -2474,17 +2474,18 @@ namespace bgfx { namespace d3d9
 				else if (0 == (kUniformSamplerBit & type) )
 				{
 					const UniformRegInfo* info = s_renderD3D9->m_uniformReg.find(name);
+					const UniformFreq::Enum freq = info->m_freq;
 					BX_WARN(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
 
 					if (NULL != info)
 					{
-						if (NULL == m_constantBuffer)
+						if (NULL == m_constantBuffer[freq])
 						{
-							m_constantBuffer = UniformBuffer::create(1024);
+							m_constantBuffer[freq] = UniformBuffer::create(1024);
 						}
 
 						kind = "user";
-						m_constantBuffer->writeUniformHandle( (UniformType::Enum)(type|fragmentBit), regIndex, info->m_handle, regCount);
+						m_constantBuffer[freq]->writeUniformHandle( (UniformType::Enum)(type|fragmentBit), regIndex, info->m_handle, regCount);
 					}
 				}
 				else
@@ -2503,9 +2504,12 @@ namespace bgfx { namespace d3d9
 				BX_UNUSED(kind);
 			}
 
-			if (NULL != m_constantBuffer)
+			for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
 			{
-				m_constantBuffer->finish();
+				if (NULL != m_constantBuffer[ii])
+				{
+					m_constantBuffer[ii]->finish();
+				}
 			}
 		}
 
@@ -3762,6 +3766,7 @@ namespace bgfx { namespace d3d9
 
 		DX_CHECK(device->SetRenderState(D3DRS_FILLMODE, _render->m_debug&BGFX_DEBUG_WIREFRAME ? D3DFILL_WIREFRAME : D3DFILL_SOLID) );
 		ProgramHandle currentProgram = BGFX_INVALID_HANDLE;
+		bool usedProgram[BGFX_CONFIG_MAX_PROGRAMS] = {};
 		SortKey key;
 		uint16_t view = UINT16_MAX;
 		FrameBufferHandle fbh = { BGFX_CONFIG_MAX_FRAME_BUFFERS };
@@ -3799,6 +3804,9 @@ namespace bgfx { namespace d3d9
 		{
 			m_occlusionQuery.resolve(_render);
 		}
+
+		rendererUpdateUniforms(this, _render->m_frameUniforms, 0, UINT32_MAX);
+		_render->m_frameUniforms->reset();
 
 		if (0 == (_render->m_debug&BGFX_DEBUG_IFH) )
 		{
@@ -3841,7 +3849,9 @@ namespace bgfx { namespace d3d9
 				uint64_t changedStencil = currentState.m_stencil ^ draw.m_stencil;
 				currentState.m_stencil = newStencil;
 
-				if (key.m_view != view)
+				bool viewChanged = key.m_view != view;
+
+				if (viewChanged)
 				{
 					currentState.clear();
 					currentState.m_scissor = !draw.m_scissor;
@@ -3898,6 +3908,16 @@ namespace bgfx { namespace d3d9
 					DX_CHECK(device->SetRenderState(D3DRS_ALPHAFUNC, D3DCMP_GREATER) );
 
 					submitBlit(bs, view);
+
+					if (UINT32_MAX != _render->m_view[view].m_uniformBegin)
+					{
+						rendererUpdateUniforms(this
+							, _render->m_viewUniforms
+							, _render->m_view[view].m_uniformBegin
+							, _render->m_view[view].m_uniformEnd
+						);
+						_render->m_viewUniforms->reset();
+					}
 				}
 
 				uint16_t scissor = draw.m_scissor;
@@ -4126,7 +4146,7 @@ namespace bgfx { namespace d3d9
 
 				bool programChanged = false;
 				bool constantsChanged = draw.m_uniformBegin < draw.m_uniformEnd;
-				rendererUpdateUniforms(this, _render->m_uniformBuffer[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
+				rendererUpdateUniforms(this, _render->m_submitUniforms[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
 
 				if (key.m_program.idx != currentProgram.idx)
 				{
@@ -4155,9 +4175,9 @@ namespace bgfx { namespace d3d9
 				{
 					ProgramD3D9& program = m_program[currentProgram.idx];
 
-					if (constantsChanged)
+					auto commitConstants = [&](bgfx::UniformFreq::Enum freq)
 					{
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer;
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[freq];
 						if (NULL != vcb)
 						{
 							commit(*vcb);
@@ -4165,15 +4185,35 @@ namespace bgfx { namespace d3d9
 
 						if (NULL != program.m_fsh)
 						{
-							UniformBuffer* fcb = program.m_fsh->m_constantBuffer;
+							UniformBuffer* fcb = program.m_fsh->m_constantBuffer[freq];
 							if (NULL != fcb)
 							{
 								commit(*fcb);
 							}
 						}
+					};
+
+					if (!usedProgram[currentProgram.idx])
+					{
+						bx::memSet(program.m_viewUniformsWasSet, 0, sizeof(bool) * BGFX_CONFIG_MAX_VIEWS);
+						commitConstants(UniformFreq::Frame);
+						usedProgram[currentProgram.idx] = true;
+						constantsChanged = true;
 					}
 
-					viewState.setPredefined<4>(this, view, program, _render, draw);
+					if (!program.m_viewUniformsWasSet[view])
+					{
+						commitConstants(UniformFreq::View);
+						program.m_viewUniformsWasSet[view] = true;
+						constantsChanged = true;
+					}
+
+					if (constantsChanged)
+					{
+						commitConstants(UniformFreq::Submit);
+					}
+
+					viewState.setPredefined<1>(this, view, program, _render, draw);
 				}
 
 				{

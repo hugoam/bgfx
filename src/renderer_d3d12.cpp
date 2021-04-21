@@ -1796,7 +1796,7 @@ namespace bgfx { namespace d3d12
 			}
 		}
 
-		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name) override
+		void createUniform(UniformHandle _handle, UniformType::Enum _type, uint16_t _num, const char* _name, UniformFreq::Enum _freq) override
 		{
 			if (NULL != m_uniforms[_handle.idx])
 			{
@@ -1807,7 +1807,7 @@ namespace bgfx { namespace d3d12
 			void* data = BX_ALLOC(g_allocator, size);
 			bx::memSet(data, 0, size);
 			m_uniforms[_handle.idx] = data;
-			m_uniformReg.add(_handle, _name);
+			m_uniformReg.add(_handle, _name, _freq);
 		}
 
 		void destroyUniform(UniformHandle _handle) override
@@ -4574,17 +4574,18 @@ namespace bgfx { namespace d3d12
 				else if (0 == (kUniformSamplerBit & type) )
 				{
 					const UniformRegInfo* info = s_renderD3D12->m_uniformReg.find(name);
+					const UniformFreq::Enum freq = info->m_freq;
 					BX_WARN(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
 
 					if (NULL != info)
 					{
-						if (NULL == m_constantBuffer)
+						if (NULL == m_constantBuffer[freq])
 						{
-							m_constantBuffer = UniformBuffer::create(1024);
+							m_constantBuffer[freq] = UniformBuffer::create(1024);
 						}
 
 						kind = "user";
-						m_constantBuffer->writeUniformHandle( (UniformType::Enum)(type|fragmentBit), regIndex, info->m_handle, regCount);
+						m_constantBuffer[freq]->writeUniformHandle( (UniformType::Enum)(type|fragmentBit), regIndex, info->m_handle, regCount);
 					}
 				}
 				else
@@ -4603,9 +4604,12 @@ namespace bgfx { namespace d3d12
 				BX_UNUSED(kind);
 			}
 
-			if (NULL != m_constantBuffer)
+			for (uint32_t ii = 0; ii < UniformFreq::Count; ++ii)
 			{
-				m_constantBuffer->finish();
+				if (NULL != m_constantBuffer[ii])
+				{
+					m_constantBuffer[ii]->finish();
+				}
 			}
 		}
 
@@ -5964,6 +5968,8 @@ namespace bgfx { namespace d3d12
 // 		bool wireframe = !!(_render->m_debug&BGFX_DEBUG_WIREFRAME);
 // 		setDebugWireframe(wireframe);
 
+		bool usedProgram[BGFX_CONFIG_MAX_PROGRAMS] = {};
+
 		uint16_t currentSamplerStateIdx = kInvalidHandle;
 		ProgramHandle currentProgram    = BGFX_INVALID_HANDLE;
 		uint32_t currentBindHash        = 0;
@@ -6001,6 +6007,9 @@ namespace bgfx { namespace d3d12
 			, m_gpuTimer
 			, s_viewName
 			);
+
+		rendererUpdateUniforms(this, _render->m_frameUniforms, 0, UINT32_MAX);
+		_render->m_frameUniforms->reset();
 
 #if BX_PLATFORM_WINDOWS
 		if (NULL != m_swapChain)
@@ -6137,6 +6146,16 @@ namespace bgfx { namespace d3d12
 					prim = s_primInfo[Topology::Count]; // Force primitive type update.
 
 					submitBlit(bs, view);
+
+					if (UINT32_MAX != _render->m_view[view].m_uniformBegin)
+					{
+						rendererUpdateUniforms(this
+							, _render->m_viewUniforms
+							, _render->m_view[view].m_uniformBegin
+							, _render->m_view[view].m_uniformEnd
+						);
+						_render->m_viewUniforms->reset();
+					}
 				}
 
 				if (isCompute)
@@ -6286,12 +6305,12 @@ namespace bgfx { namespace d3d12
 					if (compute.m_uniformBegin < compute.m_uniformEnd
 					||  currentProgram.idx != key.m_program.idx)
 					{
-						rendererUpdateUniforms(this, _render->m_uniformBuffer[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
+						rendererUpdateUniforms(this, _render->m_submitUniforms[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
 
 						currentProgram = key.m_program;
 						ProgramD3D12& program = m_program[currentProgram.idx];
 
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer;
+						UniformBuffer* vcb = program.m_vsh->m_constantBuffer[UniformFreq::Submit];
 						if (NULL != vcb)
 						{
 							commit(*vcb);
@@ -6426,8 +6445,9 @@ namespace bgfx { namespace d3d12
 					primIndex = uint8_t(pt>>BGFX_STATE_PT_SHIFT);
 				}
 
-				bool constantsChanged = draw.m_uniformBegin < draw.m_uniformEnd;
-				rendererUpdateUniforms(this, _render->m_uniformBuffer[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
+				bool constantsChanged = false;
+				bool submitConstants = draw.m_uniformBegin < draw.m_uniformEnd;
+				rendererUpdateUniforms(this, _render->m_submitUniforms[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
 
 				if (0 != draw.m_streamMask)
 				{
@@ -6678,30 +6698,53 @@ namespace bgfx { namespace d3d12
 						m_commandList->SetPipelineState(pso);
 					}
 
-					if (constantsChanged
+					if (submitConstants
 					||  currentProgram.idx != key.m_program.idx
 					||  BGFX_STATE_ALPHA_REF_MASK & changedFlags)
 					{
 						currentProgram = key.m_program;
 						ProgramD3D12& program = m_program[currentProgram.idx];
 
-						UniformBuffer* vcb = program.m_vsh->m_constantBuffer;
-						if (NULL != vcb)
+						auto commitConstants = [&](bgfx::UniformFreq::Enum freq)
 						{
-							commit(*vcb);
+							UniformBuffer* vcb = program.m_vsh->m_constantBuffer[freq];
+							if (NULL != vcb)
+							{
+								commit(*vcb);
+							}
+
+							if (NULL != program.m_fsh)
+							{
+								UniformBuffer* fcb = program.m_fsh->m_constantBuffer[freq];
+								if (NULL != fcb)
+								{
+									commit(*fcb);
+								}
+							}
+						};
+
+						if (!usedProgram[currentProgram.idx])
+						{
+							bx::memSet(program.m_viewUniformsWasSet, 0, sizeof(bool) * BGFX_CONFIG_MAX_VIEWS);
+							commitConstants(UniformFreq::Frame);
+							usedProgram[currentProgram.idx] = true;
+							constantsChanged = true;
 						}
 
-						if (NULL != program.m_fsh)
+						if (!program.m_viewUniformsWasSet[view])
 						{
-							UniformBuffer* fcb = program.m_fsh->m_constantBuffer;
-							if (NULL != fcb)
-							{
-								commit(*fcb);
-							}
+							commitConstants(UniformFreq::View);
+							program.m_viewUniformsWasSet[view] = true;
+							constantsChanged = true;
+						}
+
+						if (submitConstants)
+						{
+							commitConstants(UniformFreq::Submit);
+							constantsChanged = true;
 						}
 
 						hasPredefined = 0 < program.m_numPredefined;
-						constantsChanged = true;
 					}
 
 					if (constantsChanged
