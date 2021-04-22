@@ -243,7 +243,7 @@ namespace bgfx { namespace metal
 
 			BX_TRACE("%s, %s, %d, %d, %d"
 				, un.name.c_str()
-				, getUniformTypeName(un.type)
+				, getUniformTypeName(UniformType::Enum(un.type & ~kUniformMask))
 				, un.num
 				, un.regIndex
 				, un.regCount
