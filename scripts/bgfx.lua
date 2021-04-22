@@ -320,23 +320,21 @@ if _OPTIONS["with-webgpu"] then
 
 			links {
 				-- shared
-				--"dawn_proc_shared",
-				--"dawn_native_shared",
-				--"shaderc_spvc_shared",
-				-- static
-				"dawn_common",
 				"dawn_proc",
 				"dawn_native",
-				"dawn_platform",
-				----"shaderc",
 				"tint",
-				"SPIRV-Tools",
-				"SPIRV-Tools-opt",
-				"spirv-cross-cored",
-				"spirv-cross-hlsld",
-				"spirv-cross-glsld",
-				"spirv-cross-msld",
-				--"spirv-cross-reflectd",
+				-- static
+				--"dawn_common",
+				--"dawn_proc",
+				--"dawn_native",
+				--"dawn_platform",
+				--"tint",
+				--"SPIRV-Tools",
+				--"SPIRV-Tools-opt",
+				--"spirv-cross-cored",
+				--"spirv-cross-hlsld",
+				--"spirv-cross-glsld",
+				--"spirv-cross-msld",
 			}
 
 			removeflags {
