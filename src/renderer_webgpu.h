@@ -240,8 +240,8 @@ namespace bgfx { namespace webgpu
 
 		wgpu::VertexState desc;
 
-		wgpu::VertexBufferLayoutDescriptor buffers[kMaxVertexInputs];
-		wgpu::VertexAttributeDescriptor attributes[kMaxVertexAttributes];
+		wgpu::VertexBufferLayout buffers[kMaxVertexInputs];
+		wgpu::VertexAttribute attributes[kMaxVertexAttributes];
 	};
 
 	struct RenderPipelineDescriptor
