@@ -59,7 +59,7 @@ namespace bgfx { namespace webgpu
 	template <> wgpu::VertexState				   defaultDescriptor() { return { NULL, {}, "main", 0, NULL }; }
 	template <> wgpu::FragmentState				   defaultDescriptor() { return { NULL, {}, "main", 0, NULL }; }
 	template <> wgpu::VertexBufferLayout		   defaultDescriptor() { return { 0, wgpu::InputStepMode::Vertex, 0, NULL }; }
-	template <> wgpu::VertexAttribute			   defaultDescriptor() { return { wgpu::VertexFormat::Float, 0, 0 }; }
+	template <> wgpu::VertexAttribute			   defaultDescriptor() { return { wgpu::VertexFormat::Float32, 0, 0 }; }
 	template <> wgpu::PrimitiveState			   defaultDescriptor() { return { NULL, wgpu::PrimitiveTopology::TriangleList, wgpu::IndexFormat::Undefined, wgpu::FrontFace::CCW, wgpu::CullMode::None }; }
 	template <> wgpu::DepthStencilState			   defaultDescriptor() { return { NULL, wgpu::TextureFormat::Depth24PlusStencil8, false, wgpu::CompareFunction::Always, defaultDescriptor<wgpu::StencilFaceState>(), defaultDescriptor<wgpu::StencilFaceState>(), 0xff, 0xff }; }
 	template <> wgpu::PipelineLayoutDescriptor     defaultDescriptor() { return { NULL, "", 0, NULL }; }
@@ -209,17 +209,17 @@ namespace bgfx { namespace webgpu
 		{ wgpu::BlendFactor(0),                  wgpu::BlendFactor(0)                  }, // ignored
 		{ wgpu::BlendFactor::Zero,               wgpu::BlendFactor::Zero               }, // ZERO
 		{ wgpu::BlendFactor::One,                wgpu::BlendFactor::One                }, // ONE
-		{ wgpu::BlendFactor::SrcColor,           wgpu::BlendFactor::SrcAlpha           }, // SRC_COLOR
-		{ wgpu::BlendFactor::OneMinusSrcColor,   wgpu::BlendFactor::OneMinusSrcAlpha   }, // INV_SRC_COLOR
+		{ wgpu::BlendFactor::Src,                wgpu::BlendFactor::SrcAlpha           }, // SRC_COLOR
+		{ wgpu::BlendFactor::OneMinusSrc,        wgpu::BlendFactor::OneMinusSrcAlpha   }, // INV_SRC_COLOR
 		{ wgpu::BlendFactor::SrcAlpha,           wgpu::BlendFactor::SrcAlpha           }, // SRC_ALPHA
 		{ wgpu::BlendFactor::OneMinusSrcAlpha,   wgpu::BlendFactor::OneMinusSrcAlpha   }, // INV_SRC_ALPHA
 		{ wgpu::BlendFactor::DstAlpha,           wgpu::BlendFactor::DstAlpha           }, // DST_ALPHA
 		{ wgpu::BlendFactor::OneMinusDstAlpha,   wgpu::BlendFactor::OneMinusDstAlpha   }, // INV_DST_ALPHA
-		{ wgpu::BlendFactor::DstColor,           wgpu::BlendFactor::DstAlpha           }, // DST_COLOR
-		{ wgpu::BlendFactor::OneMinusDstColor,   wgpu::BlendFactor::OneMinusDstAlpha   }, // INV_DST_COLOR
+		{ wgpu::BlendFactor::Dst,                wgpu::BlendFactor::DstAlpha           }, // DST_COLOR
+		{ wgpu::BlendFactor::OneMinusDst,        wgpu::BlendFactor::OneMinusDstAlpha   }, // INV_DST_COLOR
 		{ wgpu::BlendFactor::SrcAlphaSaturated,  wgpu::BlendFactor::One                }, // SRC_ALPHA_SAT
-		{ wgpu::BlendFactor::BlendColor,         wgpu::BlendFactor::BlendColor         }, // FACTOR
-		{ wgpu::BlendFactor::OneMinusBlendColor, wgpu::BlendFactor::OneMinusBlendColor }, // INV_FACTOR
+		{ wgpu::BlendFactor::Constant,           wgpu::BlendFactor::Constant           }, // FACTOR
+		{ wgpu::BlendFactor::OneMinusConstant,   wgpu::BlendFactor::OneMinusConstant   }, // INV_FACTOR
 	};
 
 	static const wgpu::BlendOperation s_blendEquation[] =
@@ -2045,7 +2045,7 @@ namespace bgfx { namespace webgpu
 
 							if(0 == _decl.m_attributes[attr])
 							{
-								inputAttrib->format = wgpu::VertexFormat::Float3;
+								inputAttrib->format = wgpu::VertexFormat::Float32x3;
 								inputAttrib->offset = 0;
 							}
 							else
@@ -2110,7 +2110,7 @@ namespace bgfx { namespace webgpu
 					  //wgpu::VertexBufferLayout* inputAttrib = const_cast<VkVertexInputAttributeDescription*>(_vertexInputState.pVertexAttributeDescriptions + numAttribs);
 						inputAttrib->shaderLocation = program.m_vsh->m_attrRemap[ii];
 					  //inputAttrib->binding = 0;
-						inputAttrib->format = wgpu::VertexFormat::Float3; // VK_FORMAT_R32G32B32_SFLOAT;
+						inputAttrib->format = wgpu::VertexFormat::Float32x3; // VK_FORMAT_R32G32B32_SFLOAT;
 						inputAttrib->offset = 0;
 						vertex.buffers[stream-1].attributeCount++;
 						++inputAttrib;
@@ -4505,7 +4505,7 @@ namespace bgfx { namespace webgpu
 					float bb = ((rgba >> 8) & 0xff) / 255.0f;
 					float aa = ((rgba) & 0xff) / 255.0f;
 					wgpu::Color color = { rr, gg, bb, aa };
-					rce.SetBlendColor(&color);
+					rce.SetBlendConstant(&color);
 
 					blendFactor = draw.m_rgba;
 				}
