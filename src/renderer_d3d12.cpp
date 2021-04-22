@@ -1597,7 +1597,7 @@ namespace bgfx { namespace d3d12
 
 		void createShader(ShaderHandle _handle, const Memory* _mem) override
 		{
-			m_shaders[_handle.idx].create(_mem);
+			m_shaders[_handle.idx].create(_handle, _mem);
 		}
 
 		void destroyShader(ShaderHandle _handle) override
@@ -4400,8 +4400,10 @@ namespace bgfx { namespace d3d12
 		m_layoutHandle = _layoutHandle;
 	}
 
-	void ShaderD3D12::create(const Memory* _mem)
+	void ShaderD3D12::create(ShaderHandle _handle, const Memory* _mem)
 	{
+		m_handle = _handle;
+
 		bx::MemoryReader reader(_mem->data, _mem->size);
 
 		uint32_t magic;

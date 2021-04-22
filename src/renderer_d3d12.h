@@ -246,7 +246,7 @@ namespace bgfx { namespace d3d12
 		{
 		}
 
-		void create(const Memory* _mem);
+		void create(ShaderHandle _handle, const Memory* _mem);
 
 		void destroy()
 		{
@@ -269,6 +269,7 @@ namespace bgfx { namespace d3d12
 			}
 		}
 
+		ShaderHandle m_handle;
 		const Memory* m_code;
 		UniformBuffer* m_constantBuffer[UniformSet::Count];
 
