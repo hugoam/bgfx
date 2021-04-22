@@ -5049,7 +5049,7 @@ namespace bgfx { namespace d3d12
 			BX_FREE(g_allocator, temp);
 		}
 
-		D3D12_RANGE writeRange = { 0, numRows*rowPitch };
+		D3D12_RANGE writeRange = { 0, totalBytes };
 		staging->Unmap(0, &writeRange);
 
 		D3D12_BOX box;
