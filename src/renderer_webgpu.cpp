@@ -2575,6 +2575,8 @@ namespace bgfx { namespace webgpu
 					m_textures[m_numSamplers].texture.viewDimension = textureDimensionToWgpu(idToTextureDimension(texDimension));
 					m_textures[m_numSamplers].texture.sampleType = textureComponentToWgpuSampleType(idToTextureComponentType(texComponent));
 
+					bool unfilterable = m_textures[m_numSamplers].texture.sampleType == wgpu::TextureSampleType::UnfilterableFloat;
+
 					const bool comparisonSampler = (type & kUniformCompareBit) != 0;
 
 					m_samplers[m_numSamplers] = wgpu::BindGroupLayoutEntry();
@@ -2582,7 +2584,7 @@ namespace bgfx { namespace webgpu
 					m_samplers[m_numSamplers].visibility = shaderStage;
 					m_samplers[m_numSamplers].sampler.type = comparisonSampler
 						? wgpu::SamplerBindingType::Comparison
-						: wgpu::SamplerBindingType::Filtering;
+						: (unfilterable ? wgpu::SamplerBindingType::NonFiltering : wgpu::SamplerBindingType::Filtering);
 
 					m_numSamplers++;
 
