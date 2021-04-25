@@ -820,7 +820,7 @@ namespace bgfx { namespace webgpu
 		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _gsh, ShaderHandle _fsh) override
 		{
 			BX_UNUSED(_gsh);
-			m_program[_handle.idx].create(&m_shaders[_vsh.idx], isValid(_fsh) ? &m_shaders[_fsh.idx] : NULL);
+			m_program[_handle.idx].create(_handle, &m_shaders[_vsh.idx], isValid(_fsh) ? &m_shaders[_fsh.idx] : NULL);
 		}
 
 		void destroyProgram(ProgramHandle _handle) override
@@ -1301,10 +1301,12 @@ namespace bgfx { namespace webgpu
 
 		BindStateWgpu& allocBindState(const ProgramWgpu& program, BindStateCacheWgpu& bindStates, BindingsWgpu& bindings, ScratchBufferWgpu& scratchBuffer)
 		{
+			BX_ASSERT(bindStates.m_currentBindState < WEBGPU_MAX_BIND_STATES, "Problem");
 			BindStateWgpu& bindState = bindStates.m_bindStates[bindStates.m_currentBindState];
 			bindStates.m_currentBindState++;
 
-			bindState.numOffset = program.m_numUniforms;
+			bindState.m_program = program.m_handle;
+			bindState.m_numOffset = program.m_numUniforms;
 
 			// first two bindings are always uniform buffer (vertex/fragment)
 			if (0 < program.m_vsh->m_gpuSize)
@@ -1342,7 +1344,8 @@ namespace bgfx { namespace webgpu
 		template <class Encoder>
 		void bindProgram(Encoder& encoder, const ProgramWgpu& program, BindStateWgpu& bindState, uint32_t numOffset, uint32_t* offsets)
 		{
-			BX_ASSERT(bindState.numOffset == numOffset, "We're obviously doing something wrong");
+			BX_ASSERT(bindState.m_program.idx == program.m_handle.idx, "We're obviously doing something wrong");
+			BX_ASSERT(bindState.m_numOffset == numOffset, "We're obviously doing something wrong");
 			encoder.SetBindGroup(0, bindState.m_bindGroup, numOffset, offsets);
 		}
 
@@ -2073,6 +2076,8 @@ namespace bgfx { namespace webgpu
 				else
 					pd.desc.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined;
 
+				pd.desc.label = NULL != program.m_fsh ? getName(program.m_fsh->m_handle) : getName(program.m_vsh->m_handle);;
+
 				pd.desc.vertex = vertex.desc;
 
 				BX_TRACE("Creating WebGPU render pipeline state for program %s", program.m_vsh->name());
@@ -2717,8 +2722,10 @@ namespace bgfx { namespace webgpu
 		BX_TRACE("shader size %d (used=%d) (prev=%d)", (int)m_size, (int)m_gpuSize, (int)bx::strideAlign(roundUp(m_size, 4), align));
 	}
 
-	void ProgramWgpu::create(const ShaderWgpu* _vsh, const ShaderWgpu* _fsh)
+	void ProgramWgpu::create(ProgramHandle _handle, const ShaderWgpu* _vsh, const ShaderWgpu* _fsh)
 	{
+		m_handle = _handle;
+
 		BX_ASSERT(_vsh->m_module, "Vertex shader doesn't exist.");
 		m_vsh = _vsh;
 		m_fsh = _fsh;
@@ -2827,6 +2834,7 @@ namespace bgfx { namespace webgpu
 		BX_ASSERT(m_numUniforms + m_numSamplers * 2 + m_numBuffers == numBindings, "");
 
 		wgpu::BindGroupLayoutDescriptor bindGroupDesc;
+		bindGroupDesc.label = NULL != _fsh ? getName(_fsh->m_handle) : getName(_vsh->m_handle);
 		bindGroupDesc.entryCount = numBindings;
 		bindGroupDesc.entries = bindings;
 		m_bindGroupLayout = s_renderWgpu->m_device.CreateBindGroupLayout(&bindGroupDesc);
@@ -4630,7 +4638,9 @@ namespace bgfx { namespace webgpu
 					}
 
 					uint32_t bindHash = bx::hash<bx::HashMurmur2A>(renderBind.m_bind, sizeof(renderBind.m_bind));
-					if (currentBindHash != bindHash
+					// We can't reuse a bindState of a different program, because it will then hold a different bind group layout
+					if (programChanged
+					||  currentBindHash != bindHash
 					||  currentBindLayoutHash != program.m_bindGroupLayoutHash)
 					{
 						currentBindHash = bindHash;

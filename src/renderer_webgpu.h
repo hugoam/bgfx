@@ -33,6 +33,7 @@
 	BX_MACRO_BLOCK_END
 
 #define WEBGPU_NUM_UNIFORM_BUFFERS  8
+#define WEBGPU_MAX_BIND_STATES 2048
 
 namespace bgfx { namespace webgpu
 {
@@ -191,8 +192,10 @@ namespace bgfx { namespace webgpu
 
 	struct ProgramWgpu
 	{
-		void create(const ShaderWgpu* _vsh, const ShaderWgpu* _fsh);
+		void create(ProgramHandle _handle, const ShaderWgpu* _vsh, const ShaderWgpu* _fsh);
 		void destroy();
+
+		ProgramHandle m_handle;
 
 		const ShaderWgpu* m_vsh = NULL;
 		const ShaderWgpu* m_fsh = NULL;
@@ -264,7 +267,8 @@ namespace bgfx { namespace webgpu
 	{
 		void clear();
 
-		uint32_t numOffset;
+		uint32_t m_numOffset;
+		ProgramHandle m_program;
 
 		wgpu::BindGroup m_bindGroup;
 	};
@@ -334,7 +338,7 @@ namespace bgfx { namespace webgpu
 		void destroy();
 		void reset();
 
-		BindStateWgpu m_bindStates[1024] = {};
+		BindStateWgpu m_bindStates[WEBGPU_MAX_BIND_STATES] = {};
 		uint32_t m_currentBindState;
 		//uint32_t m_maxBindStates;
 	};
