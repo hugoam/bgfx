@@ -182,7 +182,7 @@ namespace bgfx { namespace spirv
 		},
 	};
 
-	bgfx::TextureComponentType::Enum SpirvCrossBaseTypeToFormatType(spirv_cross::SPIRType::BaseType spirvBaseType, bool depth)
+	bgfx::TextureComponentType::Enum SpirvCrossBaseTypeToFormatType(spirv_cross::SPIRType::BaseType spirvBaseType, bool filtered, bool depth)
 	{
 		if (depth)
 			return bgfx::TextureComponentType::Depth;
@@ -190,7 +190,7 @@ namespace bgfx { namespace spirv
 		switch (spirvBaseType)
 		{
 		case spirv_cross::SPIRType::Float:
-			return bgfx::TextureComponentType::Float;
+			return filtered ? bgfx::TextureComponentType::Float : bgfx::TextureComponentType::UnfilterableFloat;
 		case spirv_cross::SPIRType::Int:
 			return bgfx::TextureComponentType::Int;
 		case spirv_cross::SPIRType::UInt:
@@ -870,11 +870,13 @@ namespace bgfx { namespace spirv
 							auto imageType2 = refl.get_type(imageType.type);
 							auto componentType = refl.get_type(imageType.type).basetype;
 
+							bool foundSampler = false;
 							bool isCompareSampler = false;
 							for (auto& sampler : resourcesrefl.separate_samplers)
 							{
 								if (binding_index + 16 == refl.get_decoration(sampler.id, spv::Decoration::DecorationBinding) )
 								{
+									foundSampler = true;
 									std::string samplerName = refl.get_name(sampler.id);
 									isCompareSampler = refl.variable_is_depth_or_compare(sampler.id) || samplerName.find("Comparison") != std::string::npos;
 									break;
@@ -888,7 +890,7 @@ namespace bgfx { namespace spirv
 									| (isCompareSampler ? kUniformCompareBit : 0)
 									);
 
-							un.texComponent = textureComponentTypeToId(SpirvCrossBaseTypeToFormatType(componentType, imageType.depth) );
+							un.texComponent = textureComponentTypeToId(SpirvCrossBaseTypeToFormatType(componentType, foundSampler, imageType.depth) );
 							un.texDimension = textureDimensionToId(SpirvDimToTextureViewDimension(imageType.dim, imageType.arrayed) );
 							un.texFormat = uint16_t(s_textureFormats[imageType.format]);
 
@@ -918,7 +920,7 @@ namespace bgfx { namespace spirv
 						un.name = name;
 						un.type = type;
 
-						un.texComponent = textureComponentTypeToId(SpirvCrossBaseTypeToFormatType(componentType, imageType.depth) );
+						un.texComponent = textureComponentTypeToId(SpirvCrossBaseTypeToFormatType(componentType, false, imageType.depth) );
 						un.texDimension = textureDimensionToId(SpirvDimToTextureViewDimension(imageType.dim, imageType.arrayed) );
 						un.texFormat = uint16_t(s_textureFormats[imageType.format]);
 
