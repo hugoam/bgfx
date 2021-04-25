@@ -78,6 +78,7 @@ namespace bgfx
 			void* data = BX_ALLOC(g_allocator, size);
 			bx::memSet(data, 0, size);
 			m_uniforms[_handle.idx] = data;
+			m_uniformSizes[_handle.idx] = size;
 		}
 
 		void destroyUniform(UniformHandle _handle)
@@ -93,6 +94,8 @@ namespace bgfx
 
 		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size)
 		{
+			BX_ASSERT(_loc < 512, "Oopsie");
+			BX_ASSERT(_size <= m_uniformSizes[_loc], "Oopsie");
 			bx::memCopy(m_uniforms[_loc], _data, _size);
 		}
 
@@ -178,6 +181,7 @@ namespace bgfx
 
 	private:
 		void* m_uniforms[BGFX_CONFIG_MAX_UNIFORMS];
+		size_t m_uniformSizes[BGFX_CONFIG_MAX_UNIFORMS];
 	};
 
 	struct ViewState
